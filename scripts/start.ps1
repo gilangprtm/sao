@@ -1,0 +1,70 @@
+# scripts/start.ps1
+$ErrorActionPreference = "Stop"
+
+$baseDir = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
+Set-Location $baseDir
+
+Write-Host "==========================================" -ForegroundColor Cyan
+Write-Host "  Starting SAO (Sira Agentic Orchestrator)" -ForegroundColor Cyan
+Write-Host "==========================================" -ForegroundColor Cyan
+
+# Check if services exist
+if (-Not (Test-Path "services\9router") -Or -Not (Test-Path "services\hermes")) {
+    Write-Error "Services not installed. Run sao install first."
+}
+
+# 1. Start 9Router Gateway
+Write-Host "--> Launching 9Router (Port 20128)..." -ForegroundColor Yellow
+Start-Process -FilePath "npm" -ArgumentList "run", "dev" -WorkingDirectory "services\9router" -NoNewWindow
+
+# Wait for 9Router
+Start-Sleep -Seconds 5
+
+# 2. Read Vault Path from Config
+$saoConfigPath = Join-Path $env:USERPROFILE ".sao\config.json"
+$vaultPath = ""
+
+if (Test-Path $saoConfigPath) {
+    try {
+        $config = Get-Content -Path $saoConfigPath -Raw | ConvertFrom-Json
+        $vaultPath = $config.vault_path
+    } catch {
+        Write-Host "   Config read error. Using default." -ForegroundColor Yellow
+    }
+}
+
+if (-Not $vaultPath -Or -Not (Test-Path $vaultPath)) {
+    Write-Host "   Vault path not set or invalid. Run 'sao setup vault' before starting." -ForegroundColor Red
+    Write-Host "   Aborting." -ForegroundColor Red
+    exit 1
+}
+
+# 3. Start Graphify MCP Server (Port 5001)
+Write-Host "--> Launching Graphify MCP (Port 5001) — Indexing $vaultPath ..." -ForegroundColor Yellow
+$graphifyPython = Join-Path $baseDir "services\graphify\.venv\Scripts\python.exe"
+if (-Not (Test-Path $graphifyPython)) {
+    $graphifyPython = "python"
+}
+Start-Process -FilePath $graphifyPython -ArgumentList "-m", "graphify", $vaultPath, "--mcp" -WorkingDirectory "services\graphify" -NoNewWindow
+
+# Wait for Graphify
+Start-Sleep -Seconds 3
+
+# 4. Inject Sira Environment Configs
+$env:ANTHROPIC_BASE_URL = "http://localhost:20128/v1"
+$env:ANTHROPIC_DEFAULT_OPUS_MODEL = "fusion"
+$env:ANTHROPIC_DEFAULT_SONNET_MODEL = "fusion"
+$env:ANTHROPIC_DEFAULT_HAIKU_MODEL = "fusion"
+$env:CLAUDE_CODE_SUBAGENT_MODEL = "fusion"
+
+# 5. Start Hermes (The Brain)
+Write-Host "--> Launching Hermes Core (Port 8080)..." -ForegroundColor Yellow
+# Run python within the virtualenv
+$hermesPython = Join-Path $baseDir "services\hermes\.venv\Scripts\python.exe"
+if (-Not (Test-Path $hermesPython)) {
+    $hermesPython = "python"
+}
+Start-Process -FilePath $hermesPython -ArgumentList "-m", "hermes_api" -WorkingDirectory "services\hermes" -NoNewWindow -Wait
+
+# Sira will close gracefully when Hermes exits
+Write-Host "`nSAO closed." -ForegroundColor Green

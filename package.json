@@ -1,0 +1,13 @@
+{
+  "name": "sira-agentic-orchestrator",
+  "version": "1.0.0",
+  "description": "SAO (Sira Agentic Orchestrator) - Local-First AI Agent OS",
+  "bin": {
+    "sao": "./bin/sao.js"
+  },
+  "scripts": {
+    "start": "node ./bin/sao.js start"
+  },
+  "author": "Gilang",
+  "license": "MIT"
+}
