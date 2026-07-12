@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 SAO CLI — Sira Agentic Orchestrator
-Entry point for commands: sao start, sao status, sao stop, sao setup vault
+Entry point for commands: sao start, sao status, sao stop, sao setup vault, sao create vault
 """
 
 import argparse
@@ -44,10 +44,80 @@ def is_port_in_use(port):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         return s.connect_ex(('localhost', port)) == 0
 
+def cmd_create_vault():
+    print("🧠 SAO Create Vault\n")
+    print("This will create a new Obsidian Vault with the Sira-Vault structure (AGENTS.md, wiki/, Philosophy/, etc.).\n")
+    
+    name = input("Enter the name for your new Vault (e.g., Sira-Vault): ").strip()
+    if not name:
+        print("❌ Vault name cannot be empty.")
+        return
+
+    base_path = os.path.expanduser("~/Documents")
+    vault_path = os.path.join(base_path, name)
+
+    if os.path.exists(vault_path):
+        print(f"❌ Error: Folder '{vault_path}' already exists.")
+        return
+
+    # Create Sira-Vault structure
+    try:
+        os.makedirs(vault_path, exist_ok=True)
+        os.makedirs(os.path.join(vault_path, "wiki", "journal"), exist_ok=True)
+        os.makedirs(os.path.join(vault_path, "Philosophy"), exist_ok=True)
+        os.makedirs(os.path.join(vault_path, "raw"), exist_ok=True)
+        os.makedirs(os.path.join(vault_path, "ingested"), exist_ok=True)
+        os.makedirs(os.path.join(vault_path, "_templates"), exist_ok=True)
+        
+        # Create AGENTS.md
+        agents_content = """---
+title: "AGENTS.md — Hermes Agent Instructions"
+date: 2026-07-12
+status: canonical
+---
+
+# Hermes Agent Instructions for Sira-Vault
+
+> Dibaca otomatis oleh Hermes Agent saat workdir = Sira-Vault.
+
+## Siapa Kamu
+Kamu adalah **Sira**, AI Engineer pribadi Tuan.
+
+## Prinsip Operasional Coding (Karpathy Guidelines)
+1. **Think Before Coding**
+2. **Simplicity First**
+3. **Surgical Changes**
+4. **Goal-Driven Execution**
+
+## Vault Ini
+Ini adalah second brain kamu. `wiki/` adalah compiled knowledge base.
+"""
+        with open(os.path.join(vault_path, "AGENTS.md"), "w", encoding="utf-8") as f:
+            f.write(agents_content)
+
+        # Create Philosophy/SIS.md placeholder
+        with open(os.path.join(vault_path, "Philosophy", "SIS.md"), "w", encoding="utf-8") as f:
+            f.write("# Sira Intelligence System (SIS)\n\n> DNA operasional Sira.\n")
+
+        # Create Philosophy/HOM.md placeholder
+        with open(os.path.join(vault_path, "Philosophy", "HOM.md"), "w", encoding="utf-8") as f:
+            f.write("# Hermes Operating Manual (HOM)\n\n> Protokol operasional Sira.\n")
+
+        # Save to config
+        config = load_config()
+        config["vault_path"] = vault_path
+        save_config(config)
+
+        print(f"\n✅ Vault '{name}' created successfully at:\n   {vault_path}")
+        print("✅ Structure initialized (wiki/, Philosophy/, AGENTS.md).")
+        print("✅ Path saved to config. You can now run 'sao start'.")
+
+    except Exception as e:
+        print(f"❌ Failed to create vault: {e}")
+
 def cmd_setup_vault():
     print("🔧 SAO Vault Setup\n")
-    print("SAO requires an Obsidian Vault to function as its brain/memory.")
-    print("If you haven't created one, please download Obsidian (https://obsidian.md) and create an empty Vault first.\n")
+    print("SAO requires an Obsidian Vault to function as its brain/memory.\n")
     
     config = load_config()
     current_vault = config.get("vault_path", "")
@@ -60,34 +130,18 @@ def cmd_setup_vault():
             return
 
     while True:
-        path = input("Enter the full path to your Obsidian Vault (or press Enter to skip for now):\n> ").strip()
+        path = input("Enter the full path to your Obsidian Vault:\n> ").strip()
         
         if not path:
-            print("\n⚠️ Vault setup skipped. You must run 'sao setup vault' before starting SAO.")
+            print("\n⚠️ Setup cancelled.")
             break
             
-        # Remove quotes if user pasted them
         path = path.strip('"\'')
         
         if os.path.isdir(path):
             config["vault_path"] = path
             save_config(config)
             print(f"\n✅ Vault path successfully saved: {path}")
-            
-            # Initialize basic vault structure if it doesn't exist
-            journal_path = os.path.join(path, "wiki", "journal")
-            agents_path = os.path.join(path, "AGENTS.md")
-            
-            if not os.path.exists(journal_path):
-                os.makedirs(journal_path, exist_ok=True)
-                print("   - Created wiki/journal/ directory")
-            
-            if not os.path.exists(agents_path):
-                with open(agents_path, "w", encoding="utf-8") as f:
-                    f.write("# Sira-Vault\nDefault Vault for SAO. Add your rules here.\n")
-                print("   - Created default AGENTS.md")
-                
-            print("\nVault is ready for SAO!")
             break
         else:
             print("\n❌ Error: That directory does not exist. Please enter a valid path.")
@@ -96,7 +150,7 @@ def cmd_start():
     config = load_config()
     if not config.get("vault_path"):
         print("❌ Error: Vault path is not set.")
-        print("Please run 'sao setup vault' first to connect SAO to your Obsidian Vault.")
+        print("Please run 'sao create vault' or 'sao setup vault' first.")
         sys.exit(1)
         
     print("🚀 Starting SAO (Sira Agentic Orchestrator)...")
@@ -122,7 +176,7 @@ def cmd_status():
     if vault:
         print(f"\n📂 Target Vault: {vault}")
     else:
-        print(f"\n📂 Target Vault: NOT CONFIGURED (Run 'sao setup vault')")
+        print(f"\n📂 Target Vault: NOT CONFIGURED (Run 'sao create vault' or 'sao setup vault')")
     
     if all_ok:
         print("\n🟢 All services are running properly.")
@@ -174,6 +228,8 @@ def main():
     setup_parser = subparsers.add_parser("setup", help="Setup SAO configurations")
     setup_parser.add_argument("module", choices=["vault"], help="Module to setup (e.g., vault)")
 
+    subparsers.add_parser("create", help="Create a new Sira-Vault").add_argument("module", choices=["vault"], help="Module to create (e.g., vault)")
+
     args = parser.parse_args()
 
     if args.command == "start":
@@ -185,6 +241,9 @@ def main():
     elif args.command == "setup":
         if args.module == "vault":
             cmd_setup_vault()
+    elif args.command == "create":
+        if args.module == "vault":
+            cmd_create_vault()
     else:
         parser.print_help()
 

@@ -16,11 +16,10 @@ Powered by: **Hermes** (The Brain) + **9Router** (Token-saving Gateway) + **Grap
 - Python 3.11+ & `uv`
 - Node.js 20+
 
-### 2. Install Obsidian & Create a Vault
-SAO needs a brain. We use Obsidian for this.
+### 2. Download Obsidian
+SAO needs a brain to store its knowledge, philosophy, and memory. We use Obsidian for this.
 1. Download and install [Obsidian](https://obsidian.md/).
-2. Create a new Vault (you can name it `Sira-Vault` or anything you like).
-3. Note down the folder path of your new Vault (e.g., `C:\Users\YourName\Documents\MyVault`).
+2. You don't need to create the Vault yet — SAO will generate the correct structure for you in the next steps.
 
 ### 3. Install SAO
 SAO provides a convenient NPM wrapper for global access.
@@ -33,13 +32,15 @@ npm install -g sira-agentic-orchestrator
 sao install
 ```
 
-### 4. Connect SAO to Your Vault
-Tell SAO where your brain is located:
+### 4. Create & Connect Your Sira-Vault
+Tell SAO to generate your brain structure:
 
 ```powershell
-sao setup vault
+sao create vault
 ```
-*(When prompted, paste the folder path from Step 2)*
+*(You will be asked to name your Vault. SAO will create it in your Documents folder and inject the necessary DNA like `AGENTS.md` and `Philosophy/` folder).*
+
+> **Note**: If you already have an existing Sira-Vault, you can link it manually using `sao setup vault`.
 
 ### 5. Launch
 Start the entire SAO homelab with one command:
