@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 SAO CLI — Sira Agentic Orchestrator
-Commands: install-related helpers, start/status/stop, create/setup vault, set worker
+Commands: install-related helpers, start/status/stop, create/setup vault, set worker, log sessions
 """
 
 import argparse
@@ -47,8 +47,8 @@ def get_psutil():
 def default_config():
     return {
         "vault_path": "",
-        "worker": "sira",       # default: Hermes/Sira itself
-        "worker_cmd": "",      # custom CLI if worker != sira, e.g. "claude"
+        "worker": "sira",
+        "worker_cmd": "",
     }
 
 
@@ -155,6 +155,7 @@ def cmd_create_vault():
             "ingested",
             "graphify-out",
             "_templates",
+            "Sessions",
         ]
         for d in required_dirs:
             dir_path = os.path.join(vault_path, d)
@@ -169,7 +170,7 @@ def cmd_create_vault():
         save_config(config)
 
         print(f"\n✅ Vault '{name}' created successfully at:\n   {vault_path}")
-        print("✅ Structure: AGENTS.md, SCHEMA.md, Philosophy/SIS+SOM, wiki/, raw/, ingested/, graphify-out/, _templates/")
+        print("✅ Structure: AGENTS.md, SCHEMA.md, Philosophy/SIS+SOM, wiki/, raw/, ingested/, graphify-out/, _templates/, Sessions/")
         print("✅ Full SIS + SOM content included (not placeholders).")
         print("✅ Path saved to config. Next: open folder in Obsidian (optional), then 'sao start'.")
 
@@ -362,6 +363,22 @@ def cmd_stop():
         print("\n⚪ No running SAO services detected.")
 
 
+def cmd_log_sessions():
+    """Sync Hermes session history into Sira-Vault/Sessions/"""
+    config = load_config()
+    vpath = config.get("vault_path")
+    if not vpath or not os.path.isdir(vpath):
+        print("❌ Vault path not configured. Run 'sao setup vault' first.")
+        return
+    # Import the sync function
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from scripts.subconscious import run_session_sync
+        run_session_sync(vpath)
+    except Exception as e:
+        print(f"❌ Failed to sync sessions: {e}")
+
+
 def main():
     parser = argparse.ArgumentParser(description="SAO — Sira Agentic Orchestrator CLI")
     subparsers = parser.add_subparsers(dest="command")
@@ -385,6 +402,9 @@ def main():
     set_parser.add_argument("module", choices=["worker"], help="What to set (worker)")
     set_parser.add_argument("value", nargs="?", default=None, help="Worker name/cmd: sira | claude | opencode | <cli>")
 
+    # New command
+    subparsers.add_parser("log", help="Log Hermes sessions into Sira-Vault/Sessions/")
+
     args = parser.parse_args()
 
     if args.command == "start":
@@ -402,6 +422,8 @@ def main():
     elif args.command == "set":
         if args.module == "worker":
             cmd_set_worker(args.value)
+    elif args.command == "log":
+        cmd_log_sessions()
     else:
         parser.print_help()
 

@@ -99,6 +99,7 @@ Usage:
   sao set worker [cmd]        # Set coding worker (default: sira)
   sao start                   # Launch SAO (incremental graph update)
   sao start --clean-graph     # Launch + full graph rebuild (remove stale nodes)
+  sao log                     # Sync Hermes sessions → vault/Sessions/
   sao status                  # Check services + vault + worker
   sao stop                    # Stop all services
 ```
@@ -120,6 +121,7 @@ Documents/<VaultName>/
 ├── wiki/
 │   ├── index.md
 │   └── journal/           # Daily digests (subconscious)
+├── Sessions/              # Compiled Hermes session notes (from sao log)
 ├── raw/                   # Unprocessed documents
 ├── ingested/              # Archive
 ├── graphify-out/          # Graph index output
@@ -144,6 +146,24 @@ Sets coding delegate. Default `sira`. Probes PATH and lists detected CLIs.
 | `sao start` | Everyday | Fast (incremental) | No — stale nodes can remain |
 | `sao start --clean-graph` | After mass delete / graph feels wrong | Slower (1–3+ min large vault) | **Yes** — wipe `graphify-out` + reindex `--force` |
 
+#### `sao log`
+Syncs Hermes conversation history into the vault:
+
+```
+Hermes state.db (Discord / Telegram / CLI / TUI)
+        │
+        ▼
+  sao log  (or subconscious daily cron)
+        │
+        ▼
+  vault/Sessions/<session_id>.md
+        │
+        ▼
+  wiki/journal/YYYY-MM-DD.md  (links today's sessions)
+```
+
+Each session note contains: session ID, title, source platform, first user prompt, last Sira reply, and a placeholder for `[[wikilinks]]` to related wiki pages.
+
 #### `sao status`
 Services (ACTIVE/INACTIVE), vault path, worker config, detected CLIs.
 
@@ -162,6 +182,26 @@ Vault Markdown  →  graphify update  →  graphify-out/graph.json  →  MCP que
 - **Index**: `graphify-out/` (do not hand-edit)
 - **Default start**: incremental (add/edit only; usually seconds)
 - **After deletes**: `sao start --clean-graph` (stale nodes otherwise remain)
+
+---
+
+## 🧠 Session memory flow
+
+```
+Chat (Discord/Telegram/CLI)  →  Hermes state.db  →  sao log  →  Sessions/*.md  →  Graphify
+```
+
+Sira does **not** dump raw chat into the vault. It compiles:
+- session ID
+- what was discussed (title + first prompt + last resolution)
+- links for follow-up in `wiki/`
+
+Run manually anytime:
+```powershell
+sao log
+```
+
+Or let daily subconscious (`subconscious.py daily`) do sync + journal together.
 
 ---
 

@@ -90,6 +90,7 @@ switch (command) {
     case 'create':
     case 'setup':
     case 'set':
+    case 'log':
         runPythonCli();
         break;
     case '--help':
@@ -105,6 +106,7 @@ Usage:
   sao set worker [cmd]        # Set coding worker (default: sira)
   sao start                   # Launch SAO (incremental graph update)
   sao start --clean-graph     # Launch + full graph rebuild (remove stale nodes)
+  sao log                     # Sync Hermes sessions → vault/Sessions/
   sao status                  # Check services + vault + worker
   sao stop                    # Stop all services
 
@@ -118,6 +120,11 @@ Graph notes:
   - Default start: incremental update (fast; only changed files)
   - After deleting many vault files: sao start --clean-graph
   - Clean rebuild can take 1-3+ min on large vaults
+
+Memory notes:
+  - sao log reads Hermes state.db sessions (Discord/Telegram/CLI)
+  - Writes compiled notes to vault/Sessions/<session_id>.md
+  - Daily digest (subconscious) links today's sessions into wiki/journal/
 
 Notes:
   - Worker is OPTIONAL. Core install never requires Claude Code.
