@@ -92,6 +92,8 @@ switch (command) {
     case 'set':
         runPythonCli();
         break;
+    case '--help':
+    case '-h':
     default:
         console.log(`
 SAO - Sira Agentic Orchestrator
