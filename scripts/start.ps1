@@ -36,7 +36,7 @@ if (-Not $vaultPath -Or -Not (Test-Path $vaultPath)) {
     exit 1
 }
 
-# 2.5 Update Graphify Index
+# 2. Update Graphify Index
 $graphifyPython = Join-Path $baseDir "services\graphify\.venv\Scripts\python.exe"
 if (-Not (Test-Path $graphifyPython)) {
     $graphifyPython = "python"

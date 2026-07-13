@@ -53,7 +53,7 @@ function runPythonCli() {
 
 function runInstall() {
     console.log('🚀 Installing SAO Core...');
-    console.log('   Core only: Hermes + 9Router + Graphify');
+    console.log('   Core only: Hermes + Graphify');
     console.log('   Worker (Claude Code / OpenCode / etc.) is OPTIONAL\n');
 
     if (process.platform === 'win32') {
