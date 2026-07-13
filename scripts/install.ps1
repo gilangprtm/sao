@@ -128,6 +128,8 @@ Write-Host "    If 'sao' is missing, re-run: npm install -g git+https://github.c
 Write-Host "`n==========================================" -ForegroundColor Green
 Write-Host "  Installation Complete!" -ForegroundColor Green
 Write-Host "  Next steps:" -ForegroundColor Green
-Write-Host "    1. sao create vault" -ForegroundColor Green
-Write-Host "    2. sao start" -ForegroundColor Green
+Write-Host "    1. Download Obsidian (optional for AI, recommended for you): https://obsidian.md" -ForegroundColor Green
+Write-Host "    2. sao create vault" -ForegroundColor Green
+Write-Host "    3. Open the vault folder in Obsidian (Open folder as vault)" -ForegroundColor Green
+Write-Host "    4. sao start" -ForegroundColor Green
 Write-Host "==========================================" -ForegroundColor Green

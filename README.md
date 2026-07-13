@@ -5,7 +5,7 @@
 
 ---
 
-**SAO** (Sira Agentic Orchestrator) is a local-first, multi-service personal AI operating system. It acts as the "engine" that powers your AI agent, while relying on an **Obsidian Vault** as its single source of truth and memory.
+**SAO** (Sira Agentic Orchestrator) is a local-first, multi-service personal AI operating system. It acts as the "engine" that powers your AI agent, while relying on a **Markdown vault folder** as its single source of truth and memory.
 
 Powered by: **Hermes** (The Brain) + **9Router** (Token-saving Gateway) + **Graphify** (Spatial Code Graph) + **Claude Code** (Autonomous Worker).
 
@@ -20,12 +20,7 @@ Powered by: **Hermes** (The Brain) + **9Router** (Token-saving Gateway) + **Grap
 > **Tidak perlu install Hermes / uv / Graphify dulu.**  
 > `sao install` otomatis: install `uv` (jika belum ada) → clone Hermes, 9Router, Graphify → setup env → install Claude Code.
 
-### 2. Download Obsidian
-SAO needs a brain to store its knowledge, philosophy, and memory. We use Obsidian for this.
-1. Download and install [Obsidian](https://obsidian.md/).
-2. You don't need to create the Vault yet — SAO will generate the correct structure for you in the next steps.
-
-### 3. Install SAO
+### 2. Install SAO
 Install the SAO CLI globally directly from GitHub (no NPM registry required):
 
 ```powershell
@@ -36,19 +31,24 @@ npm install -g git+https://github.com/gilangprtm/sao.git
 sao install
 ```
 
-### 4. Create & Connect Your Sira-Vault
-Tell SAO to generate your brain structure:
-
+### 3. Create Your Vault
 ```powershell
 sao create vault
 ```
-*(You will be asked to name your Vault. SAO will create it in your Documents folder and inject the necessary DNA like `AGENTS.md` and `Philosophy/` folder).*
+*(You will be asked to name your Vault. SAO creates it under Documents and injects `AGENTS.md`, `wiki/`, `Philosophy/`, etc.)*
 
-> **Note**: If you already have an existing Sira-Vault, you can link it manually using `sao setup vault`.
+> Already have a vault folder? Link it with `sao setup vault`.
+
+### 4. (Recommended) Open Vault in Obsidian
+**Vault = folder Markdown.** SAO only needs the folder path.  
+**Obsidian is optional for AI**, but strongly recommended for humans (graph view, search, editing).
+
+1. Download [Obsidian](https://obsidian.md/)
+2. **Open folder as vault** → pilih folder yang dibuat `sao create vault`
+
+Tanpa Obsidian, SAO tetap jalan. Catatan tetap bisa diedit di VS Code / Notepad / Cursor.
 
 ### 5. Launch
-Start the entire SAO homelab with one command:
-
 ```powershell
 sao start
 ```
@@ -60,9 +60,9 @@ sao start
 
 | Command | Description |
 |---------|-------------|
-| `sao install` | Clone & install Hermes, 9Router, Graphify, Claude Code |
-| `sao create vault` | Generate a new Obsidian Vault with Sira structure |
-| `sao setup vault` | Link an existing Vault (paste path) |
+| `sao install` | Clone & install Hermes, 9Router, Graphify, Claude Code (+ auto-install `uv`) |
+| `sao create vault` | Generate a new Markdown vault with Sira structure |
+| `sao setup vault` | Link an existing vault folder (paste path) |
 | `sao start` | Launch all SAO services |
 | `sao status` | Check running services + vault path |
 | `sao stop` | Stop all SAO services |
@@ -70,8 +70,16 @@ sao start
 ## 🧠 How SAO Learns (The Subconscious Loop)
 
 SAO runs background tasks (Cron) without your input:
-- **Daily Digest (09:00)**: Scans yesterday's tasks and writes a semantic summary directly into your Vault (`wiki/journal/YYYY-MM-DD.md`).
-- **Graph Sync**: Re-indexes your Vault via `graphify --update` automatically, ensuring SAO always understands the relationships between your notes and projects.
+- **Daily Digest (09:00)**: Scans yesterday's tasks and writes a semantic summary into your vault (`wiki/journal/YYYY-MM-DD.md`).
+- **Graph Sync**: Re-indexes your vault via `graphify --update`, so SAO understands relationships between notes and projects.
+
+## FAQ
+
+### Apakah vault wajib pakai Obsidian?
+**Tidak.**  
+Vault SAO = folder berisi Markdown + struktur `AGENTS.md` / `wiki/` / `Philosophy/`.  
+- **SAO (AI)**: hanya butuh path folder → Graphify index → baca/tulis file.  
+- **Obsidian**: editor manusia (recommended). Bisa diganti VS Code, Logseq, atau editor lain.
 
 ## 🤝 Contributing
 SAO is designed to be extensible. To add a new sub-agent, ensure it runs as a local API and register it in the `scripts/start.ps1` orchestrator.
