@@ -18,9 +18,8 @@ START_SCRIPT = os.path.join(BASE_DIR, "scripts", "start.ps1")
 CONFIG_PATH = os.path.expanduser("~/.sao/config.json")
 
 SERVICES = {
-    "9Router": 20475,
     "Graphify MCP": 20476,
-    "Hermes Core": 20477,
+    "Hermes Core": 20477
 }
 
 # Known coding worker CLIs (optional — SAO never requires them)

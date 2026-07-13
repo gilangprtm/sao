@@ -27,14 +27,14 @@ It is a **personal AI operating system with permanent memory**. It treats your M
   By default, SAO uses itself (`sira`) as the coding worker. You can later plug Claude Code, OpenCode, or any CLI you prefer.
 
 - **One Command, Zero Maintenance**  
-  `sao install` handles everything: Hermes, 9Router, Graphify, and `uv`.
+  `sao install` handles everything: Hermes, Graphify, and `uv`.
 
 - **Philosophy Built-In**  
   `sao create vault` generates a complete Sira-structured vault with full **SIS** (Sira Intelligence System) and **SOM** (Sira Operating Manual).
 
 ---
 
-**Powered by:** Hermes (Brain) + 9Router (Gateway) + Graphify (Knowledge Graph)  
+**Powered by:** Hermes (Brain) + Graphify (Knowledge Graph)  
 **Memory:** Your Vault (Markdown) + Sessions + Graph Index
 
 ---
@@ -48,7 +48,7 @@ It is a **personal AI operating system with permanent memory**. It treats your M
 - **Python 3.11+** ([python.org](https://www.python.org/downloads/) — check **"Add python.exe to PATH"**)
 
 > **No need to install Hermes / uv / Graphify / Claude Code beforehand.**  
-> `sao install` only installs the **core** (Hermes + 9Router + Graphify + auto-`uv`).  
+> `sao install` only installs the **core** (Hermes + Graphify + auto-`uv`).  
 > Coding workers are **optional**.
 
 ### 2. Install SAO
@@ -78,7 +78,6 @@ Vault = Markdown folder. Obsidian is optional for AI, recommended for humans.
 sao start                  # everyday (fast incremental graph update)
 sao start --clean-graph    # after big deletes / stale graph nodes
 ```
-- **9Router**: http://localhost:20475
 - **Graphify MCP**: http://localhost:20476
 - **Hermes**: http://localhost:20477
 
@@ -92,7 +91,7 @@ Run `sao -h` or `sao --help` to show usage help.
 SAO - Sira Agentic Orchestrator
 
 Usage:
-  sao install                 # Install core: Hermes + 9Router + Graphify (+ auto uv)
+  sao install                 # Install core: Hermes + Graphify (+ auto uv)
   sao create vault            # Generate Markdown vault with Sira structure
   sao setup vault             # Link existing vault folder
   sao set worker [cmd]        # Set coding worker (default: sira)
@@ -108,7 +107,7 @@ Usage:
 ### Detail Commands
 
 #### `sao install`
-Clones core services (Hermes, 9Router, Graphify), bootstraps envs via `uv`, installs deps. Does **not** install coding workers.
+Clones core services (Hermes, Graphify), bootstraps envs via `uv`, installs deps. Does **not** install coding workers.
 
 #### `sao create vault`
 Interactively prompts for a vault name. Generates structure under `~/Documents/[VaultName]`:
@@ -137,8 +136,7 @@ Link an existing vault folder. Writes path to `~/.sao/config.json`.
 Sets coding delegate. Default `sira`. Probes PATH and lists detected CLIs.
 
 #### `sao start` / `sao start --clean-graph`
-1. Start 9Router (`20475`)
-2. Graphify index vault
+1. Start Graphify index vault
 3. Start Graphify MCP (`20476`)
 4. Start Hermes (`20477`)
 
@@ -162,7 +160,7 @@ Related sessions are **auto-linked** via token similarity — user never types s
 Services (ACTIVE/INACTIVE), vault path, worker config.
 
 #### `sao stop`
-Stop processes on ports `20475`–`20477`.
+Stop processes on ports `20476`–`20477`.
 
 ---
 
@@ -215,7 +213,7 @@ Session 3: "auth question"    → Sira reads session1+2 → knows the context
 ## FAQ
 
 ### Does SAO need a cloud account?
-**No.** SAO runs on your machine. You choose your own LLM provider through 9Router — no mandatory cloud account.
+**No.** SAO runs on your machine. You choose your own LLM provider via Hermes config or your own custom gateway — no mandatory cloud account.
 
 ### Is Claude Code required?
 **No.** Default worker is `sira`.

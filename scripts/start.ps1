@@ -13,19 +13,11 @@ Write-Host "  Starting SAO (Sira Agentic Orchestrator)" -ForegroundColor Cyan
 Write-Host "==========================================" -ForegroundColor Cyan
 
 # Check if services exist
-if (-Not (Test-Path "services\9router") -Or -Not (Test-Path "services\hermes")) {
+if (-Not (Test-Path "services\hermes")) {
     Write-Error "Services not installed. Run sao install first."
 }
 
-# 1. Start 9Router Gateway
-Write-Host "--> Launching 9Router (Port 20475)..." -ForegroundColor Yellow
-$env:NINE_ROUTER_PORT = "20475"
-Start-Process -FilePath "npm" -ArgumentList "run", "dev" -WorkingDirectory "services\9router" -NoNewWindow
-
-# Wait for 9Router
-Start-Sleep -Seconds 5
-
-# 2. Read Vault Path from Config
+# 1. Read Vault Path from Config
 $saoConfigPath = Join-Path $env:USERPROFILE ".sao\config.json"
 $vaultPath = ""
 
@@ -97,11 +89,8 @@ Start-Process -FilePath $graphifyPython -ArgumentList "-m", "graphify", $vaultPa
 Start-Sleep -Seconds 3
 
 # 4. Inject Sira Environment Configs
-$env:ANTHROPIC_BASE_URL = "http://localhost:20475/v1"
-$env:ANTHROPIC_DEFAULT_OPUS_MODEL = "fusion"
-$env:ANTHROPIC_DEFAULT_SONNET_MODEL = "fusion"
-$env:ANTHROPIC_DEFAULT_HAIKU_MODEL = "fusion"
-$env:CLAUDE_CODE_SUBAGENT_MODEL = "fusion"
+# User can configure Gateway via Hermes ~/.hermes/config.yaml or their own ENV.
+# SAO does not enforce 9Router or specific base URLs.
 
 # 4.5 Register Subconscious Cron in Hermes if missing
 $hermesPython = Join-Path $baseDir "services\hermes\.venv\Scripts\python.exe"

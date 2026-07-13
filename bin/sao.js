@@ -100,7 +100,7 @@ switch (command) {
 SAO - Sira Agentic Orchestrator
 
 Usage:
-  sao install                 # Install core: Hermes + 9Router + Graphify (+ auto uv)
+  sao install                 # Install core: Hermes + Graphify (+ auto uv)
   sao create vault            # Generate Markdown vault with Sira structure
   sao setup vault             # Link existing vault folder
   sao set worker [cmd]        # Set coding worker (default: sira)

@@ -66,12 +66,11 @@ Ensure-Uv
 
 $services = @{
     "hermes"   = "https://github.com/nousresearch/hermes-agent.git"
-    "9router"  = "https://github.com/decolua/9router.git"
     "graphify" = "https://github.com/Graphify-Labs/graphify.git"
 }
 
-# 1. Clone core services only (Hermes + 9Router + Graphify)
-Write-Host "`n[1/3] Cloning core services (hard-fork)..." -ForegroundColor Yellow
+# 1. Clone core services only (Hermes + Graphify)
+Write-Host "`n[1/3] Cloning core services..." -ForegroundColor Yellow
 foreach ($svc in $services.GetEnumerator()) {
     $name = $svc.Name
     $url = $svc.Value
@@ -88,12 +87,6 @@ foreach ($svc in $services.GetEnumerator()) {
 
 # 2. Setup Dependencies
 Write-Host "`n[2/3] Installing service dependencies..." -ForegroundColor Yellow
-
-Write-Host "--> Setting up 9Router..."
-Set-Location "services\9router"
-if (Test-Path ".env.example") { Copy-Item ".env.example" ".env" -Force }
-npm install
-Set-Location $baseDir
 
 Write-Host "--> Setting up Graphify..."
 Set-Location "services\graphify"
@@ -134,7 +127,7 @@ Write-Host "    If 'sao' is missing, re-run: npm install -g git+https://github.c
 
 Write-Host "`n==========================================" -ForegroundColor Green
 Write-Host "  Installation Complete!" -ForegroundColor Green
-Write-Host "  Core installed: Hermes + 9Router + Graphify" -ForegroundColor Green
+Write-Host "  Core installed: Hermes + Graphify" -ForegroundColor Green
 Write-Host "  Worker: optional (default = sira)" -ForegroundColor Green
 Write-Host "  Next steps:" -ForegroundColor Green
 Write-Host "    1. Download Obsidian (optional): https://obsidian.md" -ForegroundColor Green

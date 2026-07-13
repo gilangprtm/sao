@@ -15,7 +15,6 @@
 | Service | Bahasa | Port | Peran |
 |---------|--------|------|-------|
 | **Hermes** | Python | 20477 | Brain. Commander. Cron. Orchestrator utama |
-| **9Router** | TypeScript | 20475 | AI Gateway. Token saving. Auto-fallback model |
 | **Graphify** | Python | 20476 | Knowledge graph MCP — **Katalog & Index Vault** |
 | **Worker** *(opsional)* | *CLI* | - | Executor coding (misal: Claude Code, OpenCode). Jika kosong, Hermes merangkap sebagai worker (`sira`). |
 
@@ -67,7 +66,6 @@ sao/
 │   └── sao.js           ← NPM global wrapper
 ├── services/
 │   ├── hermes/
-│   ├── 9router/
 │   └── graphify/        ← Index engine untuk Sira-Vault
 ├── scripts/
 │   ├── start.ps1
