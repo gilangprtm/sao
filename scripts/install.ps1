@@ -100,8 +100,21 @@ uv venv
 uv pip install -e .
 Set-Location $baseDir
 
-# 3. Local state + optional worker probe
-Write-Host "`n[3/3] Setting up SAO local state..." -ForegroundColor Yellow
+# 3. Install SAO Skills into Hermes
+Write-Host "`n[3/4] Installing SAO skills into Hermes..." -ForegroundColor Yellow
+$skillsDir = Join-Path $env:LOCALAPPDATA "hermes\skills"
+New-Item -ItemType Directory -Force -Path $skillsDir | Out-Null
+
+if (Test-Path "skills") {
+    Get-ChildItem -Path "skills" -Filter "*.md" | ForEach-Object {
+        $dest = Join-Path $skillsDir $_.Name
+        Copy-Item -Path $_.FullName -Destination $dest -Force
+        Write-Host "   --> Skill installed: $($_.Name)" -ForegroundColor Green
+    }
+}
+
+# 4. Local state + optional worker probe
+Write-Host "`n[4/4] Setting up SAO local state..." -ForegroundColor Yellow
 
 Write-Host "--> Probing optional coding workers (NOT installed by SAO)..."
 $workers = @("claude", "opencode", "codex", "aider", "cursor")
