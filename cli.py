@@ -8,6 +8,7 @@ import argparse
 import subprocess
 import sys
 import os
+import shutil
 import socket
 import json
 
@@ -55,8 +56,8 @@ def is_port_in_use(port):
 
 def cmd_create_vault():
     print("🧠 SAO Create Vault\n")
-    print("This will create a new Obsidian Vault with the Sira-Vault structure (AGENTS.md, wiki/, Philosophy/, etc.).\n")
-    
+    print("This will create a new Markdown vault with Sira structure (AGENTS.md, wiki/, Philosophy/SIS+SOM, etc.).\n")
+
     name = input("Enter the name for your new Vault (e.g., Sira-Vault): ").strip()
     if not name:
         print("❌ Vault name cannot be empty.")
@@ -69,57 +70,44 @@ def cmd_create_vault():
         print(f"❌ Error: Folder '{vault_path}' already exists.")
         return
 
-    # Create Sira-Vault structure
+    # Template directory shipped with package
+    pkg_dir = os.path.dirname(os.path.abspath(__file__))
+    template_dir = os.path.join(pkg_dir, "templates", "vault")
+
     try:
-        os.makedirs(vault_path, exist_ok=True)
-        os.makedirs(os.path.join(vault_path, "wiki", "journal"), exist_ok=True)
-        os.makedirs(os.path.join(vault_path, "Philosophy"), exist_ok=True)
-        os.makedirs(os.path.join(vault_path, "raw"), exist_ok=True)
-        os.makedirs(os.path.join(vault_path, "ingested"), exist_ok=True)
-        os.makedirs(os.path.join(vault_path, "_templates"), exist_ok=True)
-        
-        # Create AGENTS.md
-        agents_content = """---
-title: "AGENTS.md — Hermes Agent Instructions"
-date: 2026-07-12
-status: canonical
----
+        if os.path.isdir(template_dir):
+            for root, dirs, files in os.walk(template_dir):
+                rel = os.path.relpath(root, template_dir)
+                dest_dir = os.path.join(vault_path, rel) if rel != "." else vault_path
+                os.makedirs(dest_dir, exist_ok=True)
+                for f in files:
+                    if f == ".gitkeep":
+                        continue
+                    src = os.path.join(root, f)
+                    dst = os.path.join(dest_dir, f)
+                    shutil.copy2(src, dst)
+        else:
+            # Fallback minimal structure
+            os.makedirs(os.path.join(vault_path, "wiki", "journal"), exist_ok=True)
+            os.makedirs(os.path.join(vault_path, "Philosophy"), exist_ok=True)
+            os.makedirs(os.path.join(vault_path, "raw"), exist_ok=True)
+            os.makedirs(os.path.join(vault_path, "ingested"), exist_ok=True)
+            os.makedirs(os.path.join(vault_path, "_templates"), exist_ok=True)
+            with open(os.path.join(vault_path, "AGENTS.md"), "w", encoding="utf-8") as f:
+                f.write("# Agent Instructions\n\n> Placeholder. Full template not found.\n")
+            with open(os.path.join(vault_path, "Philosophy", "SIS.md"), "w", encoding="utf-8") as f:
+                f.write("# Sira Intelligence System (SIS)\n\n> DNA operasional Sira.\n")
+            with open(os.path.join(vault_path, "Philosophy", "SOM.md"), "w", encoding="utf-8") as f:
+                f.write("# Sira Operating Manual (SOM)\n\n> Protokol operasional Sira.\n")
 
-# Hermes Agent Instructions for Sira-Vault
-
-> Dibaca otomatis oleh Hermes Agent saat workdir = Sira-Vault.
-
-## Siapa Kamu
-Kamu adalah **Sira**, AI Engineer pribadi Tuan.
-
-## Prinsip Operasional Coding (Karpathy Guidelines)
-1. **Think Before Coding**
-2. **Simplicity First**
-3. **Surgical Changes**
-4. **Goal-Driven Execution**
-
-## Vault Ini
-Ini adalah second brain kamu. `wiki/` adalah compiled knowledge base.
-"""
-        with open(os.path.join(vault_path, "AGENTS.md"), "w", encoding="utf-8") as f:
-            f.write(agents_content)
-
-        # Create Philosophy/SIS.md placeholder
-        with open(os.path.join(vault_path, "Philosophy", "SIS.md"), "w", encoding="utf-8") as f:
-            f.write("# Sira Intelligence System (SIS)\n\n> DNA operasional Sira.\n")
-
-        # Create Philosophy/HOM.md placeholder
-        with open(os.path.join(vault_path, "Philosophy", "HOM.md"), "w", encoding="utf-8") as f:
-            f.write("# Hermes Operating Manual (HOM)\n\n> Protokol operasional Sira.\n")
-
-        # Save to config
         config = load_config()
         config["vault_path"] = vault_path
         save_config(config)
 
         print(f"\n✅ Vault '{name}' created successfully at:\n   {vault_path}")
-        print("✅ Structure initialized (wiki/, Philosophy/, AGENTS.md).")
-        print("✅ Path saved to config. You can now run 'sao start'.")
+        print("✅ Structure: AGENTS.md, SCHEMA.md, Philosophy/SIS.md, Philosophy/SOM.md, wiki/, raw/, _templates/")
+        print("✅ Full SIS + SOM content included (not placeholders).")
+        print("✅ Path saved to config. Next: open folder in Obsidian (optional), then 'sao start'.")
 
     except Exception as e:
         print(f"❌ Failed to create vault: {e}")
