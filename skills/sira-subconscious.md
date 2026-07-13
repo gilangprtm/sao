@@ -1,22 +1,21 @@
 ---
 name: sira-subconscious
-description: "Background cron jobs for Sira self-reflection and maintenance."
-tags: ["cron", "background", "maintenance"]
+description: "Background cron jobs for Sira self-reflection and session sync."
+tags: ["cron", "background", "maintenance", "memory"]
 ---
 
 # Sira Subconscious Loop
 
 ## Purpose
-Run periodic self-reflection and maintenance tasks in the background without user intervention.
+Run periodic memory sync and self-reflection in the background without user intervention.
 
 ## Cron Schedule (Hermes)
-- Every 4 hours: `python scripts/subconscious.py health`
-- Daily at 09:00: `python scripts/subconscious.py daily`
+- Daily at 09:00: `python scripts/subconscious.py daily` (auto-registered by `sao start`)
 
 ## Functions
-- **Health Check**: Verify 9Router, Hermes, Graphify, and Ledger are responsive.
-- **Daily Digest**: Aggregate `journal_events` from the last 24h and write a `daily_digest` event back into the ledger.
-- **Weekly Skill Synthesis** (future): Analyze successful tasks and promote them to new SKILL.md files.
+- **Session Sync**: Compiles Hermes conversation history (`state.db`) into `Sessions/<session_id>.md`.
+- **Auto-Linking**: Links related sessions using Jaccard similarity (user never types session IDs).
+- **Daily Digest**: Writes a journal entry (`wiki/journal/YYYY-MM-DD.md`) listing today's sessions and enforcing the **Sira Self-Review Check**.
 
 ## Output
-All background activity is recorded in `sira_ledger.db` under `event_type = daily_digest` or `health_check`.
+All background activity is written directly to Sira-Vault (`Sessions/` and `wiki/journal/`). No external database is used.

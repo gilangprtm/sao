@@ -21,7 +21,7 @@ graphify query "Apa saja prinsip E2E testing di vault?"
 
 ### 2. Path Finding
 ```bash
-graphify path "AGENTS.md" "HOM.md"
+graphify path "AGENTS.md" "SOM.md"
 ```
 
 ### 3. Explain Node
