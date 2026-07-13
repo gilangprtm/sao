@@ -103,6 +103,28 @@ $env:ANTHROPIC_DEFAULT_SONNET_MODEL = "fusion"
 $env:ANTHROPIC_DEFAULT_HAIKU_MODEL = "fusion"
 $env:CLAUDE_CODE_SUBAGENT_MODEL = "fusion"
 
+# 4.5 Register Subconscious Cron in Hermes if missing
+$hermesPython = Join-Path $baseDir "services\hermes\.venv\Scripts\python.exe"
+if (-Not (Test-Path $hermesPython)) {
+    $hermesPython = "python"
+}
+try {
+    # Ensure hermes_cli knows about the script
+    $saoScript = Join-Path $baseDir "scripts\subconscious.py"
+    $hermesScripts = Join-Path $env:LOCALAPPDATA "hermes\scripts"
+    New-Item -ItemType Directory -Force -Path $hermesScripts -ErrorAction SilentlyContinue | Out-Null
+    $targetScript = Join-Path $hermesScripts "sao_subconscious.py"
+    Copy-Item -Path $saoScript -Destination $targetScript -Force -ErrorAction SilentlyContinue
+
+    $existingCron = & $hermesPython -m hermes_cli cron list 2>$null | Select-String "sao_subconscious"
+    if (-Not $existingCron) {
+        Write-Host "--> Registering Daily Subconscious Cron in Hermes..." -ForegroundColor Yellow
+        & $hermesPython -m hermes_cli cron create --name "SAO Subconscious Daily" --schedule "0 9 * * *" --script "sao_subconscious.py" --no-agent --deliver local | Out-Null
+    }
+} catch {
+    Write-Host "   Auto-cron register skipped." -ForegroundColor DarkGray
+}
+
 # 5. Start Hermes (The Brain)
 Write-Host "--> Launching Hermes Core (Port 20477)..." -ForegroundColor Yellow
 $env:HERMES_PORT = "20477"
