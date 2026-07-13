@@ -81,18 +81,12 @@ def cmd_create_vault():
                 dest_dir = os.path.join(vault_path, rel) if rel != "." else vault_path
                 os.makedirs(dest_dir, exist_ok=True)
                 for f in files:
-                    if f == ".gitkeep":
-                        continue
+                    # Keep .gitkeep so empty dirs (raw/ingested/graphify-out) survive
                     src = os.path.join(root, f)
                     dst = os.path.join(dest_dir, f)
                     shutil.copy2(src, dst)
         else:
-            # Fallback minimal structure
-            os.makedirs(os.path.join(vault_path, "wiki", "journal"), exist_ok=True)
-            os.makedirs(os.path.join(vault_path, "Philosophy"), exist_ok=True)
-            os.makedirs(os.path.join(vault_path, "raw"), exist_ok=True)
-            os.makedirs(os.path.join(vault_path, "ingested"), exist_ok=True)
-            os.makedirs(os.path.join(vault_path, "_templates"), exist_ok=True)
+            # Fallback minimal files
             with open(os.path.join(vault_path, "AGENTS.md"), "w", encoding="utf-8") as f:
                 f.write("# Agent Instructions\n\n> Placeholder. Full template not found.\n")
             with open(os.path.join(vault_path, "Philosophy", "SIS.md"), "w", encoding="utf-8") as f:
@@ -100,12 +94,29 @@ def cmd_create_vault():
             with open(os.path.join(vault_path, "Philosophy", "SOM.md"), "w", encoding="utf-8") as f:
                 f.write("# Sira Operating Manual (SOM)\n\n> Protokol operasional Sira.\n")
 
+        # Always ensure required folders exist (empty dirs + graphify-out)
+        required_dirs = [
+            "wiki/journal",
+            "Philosophy",
+            "raw",
+            "ingested",
+            "graphify-out",
+            "_templates",
+        ]
+        for d in required_dirs:
+            dir_path = os.path.join(vault_path, d)
+            os.makedirs(dir_path, exist_ok=True)
+            if d in ("raw", "ingested", "graphify-out", "wiki/journal"):
+                gitkeep = os.path.join(dir_path, ".gitkeep")
+                if not os.path.exists(gitkeep):
+                    open(gitkeep, "a", encoding="utf-8").close()
+
         config = load_config()
         config["vault_path"] = vault_path
         save_config(config)
 
         print(f"\n✅ Vault '{name}' created successfully at:\n   {vault_path}")
-        print("✅ Structure: AGENTS.md, SCHEMA.md, Philosophy/SIS.md, Philosophy/SOM.md, wiki/, raw/, _templates/")
+        print("✅ Structure: AGENTS.md, SCHEMA.md, Philosophy/SIS+SOM, wiki/, raw/, ingested/, graphify-out/, _templates/")
         print("✅ Full SIS + SOM content included (not placeholders).")
         print("✅ Path saved to config. Next: open folder in Obsidian (optional), then 'sao start'.")
 

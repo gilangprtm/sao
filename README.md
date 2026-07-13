@@ -68,8 +68,9 @@ Documents/<VaultName>/
 ├── wiki/
 │   ├── index.md
 │   └── journal/           # Daily digests from subconscious
-├── raw/                   # Incoming sources
-├── ingested/              # Processed archive
+├── raw/                   # Incoming unprocessed sources
+├── ingested/              # Processed source archive
+├── graphify-out/          # Graphify index output (graph.json)
 └── _templates/
     └── note.md
 ```
