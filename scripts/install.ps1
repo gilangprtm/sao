@@ -62,21 +62,10 @@ Write-Host "`n[4/4] Setting up SAO CLI..." -ForegroundColor Yellow
 $taskLogDir = Join-Path $env:LOCALAPPDATA "sao\tasks"
 New-Item -ItemType Directory -Force -Path $taskLogDir | Out-Null
 
-# Buat wrapper CLI sao.bat
-$binDir = Join-Path $env:LOCALAPPDATA "sao\bin"
-New-Item -ItemType Directory -Force -Path $binDir | Out-Null
-
-$batContent = "@echo off`r`npython `"$baseDir\cli.py`" %*"
-Set-Content -Path (Join-Path $binDir "sao.bat") -Value $batContent
-
-# Tambahkan ke PATH User (jika belum ada)
-$userPath = [Environment]::GetEnvironmentVariable("PATH", "User")
-if ($userPath -notlike "*$binDir*") {
-    [Environment]::SetEnvironmentVariable("PATH", "$userPath;$binDir", "User")
-    Write-Host "--> Added SAO to User PATH. Please restart your terminal."
-} else {
-    Write-Host "--> SAO already in PATH."
-}
+# Prefer npm global bin for `sao` command.
+# Do NOT create a hard-coded python bat (breaks when python not in PATH).
+Write-Host "--> CLI is provided by npm global package (sira-agentic-orchestrator)."
+Write-Host "    If 'sao' is missing, re-run: npm install -g git+https://github.com/gilangprtm/sao.git"
 
 Write-Host "`n==========================================" -ForegroundColor Green
 Write-Host "  Installation Complete!" -ForegroundColor Green

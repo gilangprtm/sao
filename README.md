@@ -12,10 +12,13 @@ Powered by: **Hermes** (The Brain) + **9Router** (Token-saving Gateway) + **Grap
 ## 🚀 Quick Start (Windows)
 
 ### 1. Prerequisites
-- Git Bash / PowerShell
-- Python 3.11+ & `uv`
-- Node.js 20+
-- Git
+- PowerShell / CMD
+- **Node.js 20+**
+- **Git**
+- **Python 3.11+** ([python.org](https://www.python.org/downloads/) — centang **"Add python.exe to PATH"**)
+- `uv` (installer SAO akan butuh ini untuk Hermes/Graphify)
+
+> **Tidak perlu install Hermes dulu.** `sao install` yang meng-clone & install Hermes, 9Router, Graphify, Claude Code.
 
 ### 2. Download Obsidian
 SAO needs a brain to store its knowledge, philosophy, and memory. We use Obsidian for this.
@@ -30,6 +33,7 @@ Install the SAO CLI globally directly from GitHub (no NPM registry required):
 npm install -g git+https://github.com/gilangprtm/sao.git
 
 # Run the SAO installer (clones Hermes, 9Router, Graphify + sets up environments)
+# Does NOT require Hermes beforehand
 sao install
 ```
 
