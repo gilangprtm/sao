@@ -102,8 +102,6 @@ Set-Location $baseDir
 
 # 3. Local state + optional worker probe
 Write-Host "`n[3/3] Setting up SAO local state..." -ForegroundColor Yellow
-$taskLogDir = Join-Path $env:LOCALAPPDATA "sao\tasks"
-New-Item -ItemType Directory -Force -Path $taskLogDir | Out-Null
 
 Write-Host "--> Probing optional coding workers (NOT installed by SAO)..."
 $workers = @("claude", "opencode", "codex", "aider", "cursor")

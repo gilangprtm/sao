@@ -412,17 +412,6 @@ def run_daily_digest(vault_path):
             except Exception:
                 pass
 
-    tasks_dir = os.path.expanduser("~/AppData/Local/sao/tasks")
-    tasks_logged = []
-    if os.path.exists(tasks_dir):
-        for f in os.listdir(tasks_dir):
-            if f.endswith(".json") and f.startswith(today_str):
-                try:
-                    with open(os.path.join(tasks_dir, f), "r", encoding="utf-8") as file:
-                        tasks_logged.append(json.load(file))
-                except Exception:
-                    pass
-
     content = f"""---
 title: "Journal: {today_str}"
 date: {today_str}
@@ -444,13 +433,6 @@ Related sessions are **auto-linked** — user never types session IDs.
     else:
         for sid in today_sessions:
             content += f"- [[{sid}]]\n"
-
-    content += "\n## Tasks Done\n"
-    if not tasks_logged:
-        content += "- No task JSON registered today.\n"
-    else:
-        for t in tasks_logged:
-            content += f"- **{t.get('title', 'Untitled')}** — {t.get('status', 'done')}\n"
 
     content += "\n## System Health\n- Subconscious daily pass completed.\n"
 
