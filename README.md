@@ -7,7 +7,8 @@
 
 **SAO** (Sira Agentic Orchestrator) is a local-first, multi-service personal AI operating system. It acts as the "engine" that powers your AI agent, while relying on a **Markdown vault folder** as its single source of truth and memory.
 
-Powered by: **Hermes** (The Brain) + **9Router** (Token-saving Gateway) + **Graphify** (Spatial Code Graph) + **Claude Code** (Autonomous Worker).
+**Core:** Hermes (Brain) + 9Router (Gateway) + Graphify (Knowledge Graph)  
+**Worker:** optional external coding CLI — or **Sira itself** by default.
 
 ## 🚀 Quick Start (Windows)
 
@@ -15,19 +16,15 @@ Powered by: **Hermes** (The Brain) + **9Router** (Token-saving Gateway) + **Grap
 - PowerShell / CMD
 - **Node.js 20+**
 - **Git**
-- **Python 3.11+** ([python.org](https://www.python.org/downloads/) — centang **"Add python.exe to PATH"**)
+- **Python 3.11+** ([python.org](https://www.python.org/downloads/) — check **"Add python.exe to PATH"**)
 
-> **Tidak perlu install Hermes / uv / Graphify dulu.**  
-> `sao install` otomatis: install `uv` (jika belum ada) → clone Hermes, 9Router, Graphify → setup env → install Claude Code.
+> **No need to install Hermes / uv / Graphify / Claude Code beforehand.**  
+> `sao install` only installs the **core** (Hermes + 9Router + Graphify + auto-`uv`).  
+> Coding workers are **optional**.
 
 ### 2. Install SAO
-Install the SAO CLI globally directly from GitHub (no NPM registry required):
-
 ```powershell
-# Install SAO CLI globally from GitHub
 npm install -g git+https://github.com/gilangprtm/sao.git
-
-# One-shot installer (auto-installs uv + Hermes + 9Router + Graphify + Claude Code)
 sao install
 ```
 
@@ -35,75 +32,87 @@ sao install
 ```powershell
 sao create vault
 ```
-*(You will be asked to name your Vault. SAO creates it under Documents and injects full DNA: `AGENTS.md`, `SCHEMA.md`, `Philosophy/SIS.md`, `Philosophy/SOM.md`, `wiki/`, `raw/`, `_templates/`.)*
 
-> Already have a vault folder? Link it with `sao setup vault`.
+### 4. (Optional) Set a coding worker
+By default the worker is **`sira`** (Hermes itself handles coding).
 
-### 4. (Recommended) Open Vault in Obsidian
-**Vault = folder Markdown.** SAO only needs the folder path.  
-**Obsidian is optional for AI**, but strongly recommended for humans (graph view, search, editing).
+```powershell
+sao set worker              # show current + detected CLIs
+sao set worker sira         # built-in (default)
+sao set worker claude       # Claude Code CLI (if installed)
+sao set worker opencode     # OpenCode CLI
+sao set worker <any-cmd>    # any binary on PATH
+```
 
-1. Download [Obsidian](https://obsidian.md/)
-2. **Open folder as vault** → pilih folder yang dibuat `sao create vault`
+SAO **never** auto-installs Claude Code / OpenCode. Install those yourself if you want them.
 
-Tanpa Obsidian, SAO tetap jalan. Catatan tetap bisa diedit di VS Code / Notepad / Cursor.
+### 5. (Recommended) Open Vault in Obsidian
+Vault = Markdown folder. Obsidian is optional for AI, recommended for humans.
 
-### 5. Launch
+### 6. Launch
 ```powershell
 sao start
 ```
-- **9Router Dashboard**: http://localhost:20475
-- **Hermes Gateway**: http://localhost:20477
-- **Graphify MCP**: http://localhost:20476 (Indexing your Vault)
+- **9Router**: http://localhost:20475
+- **Graphify MCP**: http://localhost:20476
+- **Hermes**: http://localhost:20477
+
+## 🛠️ Worker model
+
+| Worker | How | Required? |
+|--------|-----|-----------|
+| **sira** (default) | Hermes handles coding tasks itself | No |
+| **claude** | `claude` CLI on PATH | Optional |
+| **opencode** | `opencode` CLI on PATH | Optional |
+| **custom** | any CLI you pass to `sao set worker` | Optional |
+
+Config stored in `~/.sao/config.json`:
+```json
+{
+  "vault_path": "C:\\Users\\you\\Documents\\MyVault",
+  "worker": "sira",
+  "worker_cmd": ""
+}
+```
 
 ## 📁 What `sao create vault` generates
 
 ```
 Documents/<VaultName>/
-├── AGENTS.md              # Full agent rules (auto-read by Hermes)
-├── SCHEMA.md              # Folder map + vault rules
+├── AGENTS.md
+├── SCHEMA.md
 ├── Philosophy/
-│   ├── SIS.md             # Full Sira Intelligence System (DNA)
-│   └── SOM.md             # Full Sira Operating Manual (protocols)
-├── wiki/
-│   ├── index.md
-│   └── journal/           # Daily digests from subconscious
-├── raw/                   # Incoming unprocessed sources
-├── ingested/              # Processed source archive
-├── graphify-out/          # Graphify index output (graph.json)
+│   ├── SIS.md             # Sira Intelligence System
+│   └── SOM.md             # Sira Operating Manual
+├── wiki/ + journal/
+├── raw/
+├── ingested/
+├── graphify-out/
 └── _templates/
-    └── note.md
 ```
-
-> **HOM renamed to SOM** (Sira Operating Manual) — protocols belong to Sira, not Hermes branding.
 
 ## 📋 CLI Commands
 
 | Command | Description |
 |---------|-------------|
-| `sao install` | Clone & install Hermes, 9Router, Graphify, Claude Code (+ auto-install `uv`) |
-| `sao create vault` | Generate a new Markdown vault with Sira structure |
-| `sao setup vault` | Link an existing vault folder (paste path) |
-| `sao start` | Launch all SAO services |
-| `sao status` | Check running services + vault path |
-| `sao stop` | Stop all SAO services |
-
-## 🧠 How SAO Learns (The Subconscious Loop)
-
-SAO runs background tasks (Cron) without your input:
-- **Daily Digest (09:00)**: Scans yesterday's tasks and writes a semantic summary into your vault (`wiki/journal/YYYY-MM-DD.md`).
-- **Graph Sync**: Re-indexes your vault via `graphify --update`, so SAO understands relationships between notes and projects.
+| `sao install` | Core only: Hermes + 9Router + Graphify (+ auto `uv`) |
+| `sao create vault` | Generate Markdown vault |
+| `sao setup vault` | Link existing vault |
+| `sao set worker [cmd]` | Set coding worker (default `sira`) |
+| `sao start` | Launch services |
+| `sao status` | Services + vault + worker |
+| `sao stop` | Stop services |
 
 ## FAQ
 
-### Apakah vault wajib pakai Obsidian?
-**Tidak.**  
-Vault SAO = folder berisi Markdown + struktur `AGENTS.md` / `wiki/` / `Philosophy/`.  
-- **SAO (AI)**: hanya butuh path folder → Graphify index → baca/tulis file.  
-- **Obsidian**: editor manusia (recommended). Bisa diganti VS Code, Logseq, atau editor lain.
+### Is Claude Code required?
+**No.** Default worker is `sira`. Install Claude Code / OpenCode only if you want them.
 
-## 🤝 Contributing
-SAO is designed to be extensible. To add a new sub-agent, ensure it runs as a local API and register it in the `scripts/start.ps1` orchestrator.
+### Is Obsidian required?
+**No.** Vault is a folder of Markdown files.
+
+### Linux / macOS / VPS?
+Core design is local-first. Windows installer is ready; Linux/macOS scripts are planned. Manual service setup still works on Linux.
 
 ## 📜 License
 MIT

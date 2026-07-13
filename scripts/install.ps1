@@ -16,7 +16,6 @@ function Refresh-Path {
     $machine = [Environment]::GetEnvironmentVariable("Path", "Machine")
     $user = [Environment]::GetEnvironmentVariable("Path", "User")
     $env:Path = "$machine;$user"
-    # uv default install locations
     $uvLocal = Join-Path $env:USERPROFILE ".local\bin"
     $uvCargo = Join-Path $env:USERPROFILE ".cargo\bin"
     if (Test-Path $uvLocal) { $env:Path = "$uvLocal;$env:Path" }
@@ -53,8 +52,8 @@ function Ensure-Uv {
     Write-Host "--> uv installed: $(uv --version)" -ForegroundColor Green
 }
 
-# 0. Prerequisites bootstrap
-Write-Host "`n[0/4] Checking prerequisites..." -ForegroundColor Yellow
+# 0. Prerequisites
+Write-Host "`n[0/3] Checking prerequisites..." -ForegroundColor Yellow
 
 if (-Not (Test-Command "git")) {
     throw "Git not found. Install Git first: https://git-scm.com/download/win"
@@ -71,8 +70,8 @@ $services = @{
     "graphify" = "https://github.com/Graphify-Labs/graphify.git"
 }
 
-# 1. Clone & Rebrand
-Write-Host "`n[1/4] Cloning services (hard-fork)..." -ForegroundColor Yellow
+# 1. Clone core services only (Hermes + 9Router + Graphify)
+Write-Host "`n[1/3] Cloning core services (hard-fork)..." -ForegroundColor Yellow
 foreach ($svc in $services.GetEnumerator()) {
     $name = $svc.Name
     $url = $svc.Value
@@ -87,17 +86,8 @@ foreach ($svc in $services.GetEnumerator()) {
     }
 }
 
-# 2. Install Claude Code
-Write-Host "`n[2/4] Installing Claude Code Worker..." -ForegroundColor Yellow
-try {
-    irm https://claude.ai/install.ps1 | iex
-} catch {
-    Write-Host "--> Claude Code install skipped/failed: $_" -ForegroundColor Yellow
-    Write-Host "    You can install later via: irm https://claude.ai/install.ps1 | iex"
-}
-
-# 3. Setup Dependencies
-Write-Host "`n[3/4] Installing service dependencies..." -ForegroundColor Yellow
+# 2. Setup Dependencies
+Write-Host "`n[2/3] Installing service dependencies..." -ForegroundColor Yellow
 
 Write-Host "--> Setting up 9Router..."
 Set-Location "services\9router"
@@ -117,19 +107,38 @@ uv venv
 uv pip install -e .
 Set-Location $baseDir
 
-# 4. Setup task logs
-Write-Host "`n[4/4] Setting up SAO local state..." -ForegroundColor Yellow
+# 3. Local state + optional worker probe
+Write-Host "`n[3/3] Setting up SAO local state..." -ForegroundColor Yellow
 $taskLogDir = Join-Path $env:LOCALAPPDATA "sao\tasks"
 New-Item -ItemType Directory -Force -Path $taskLogDir | Out-Null
+
+Write-Host "--> Probing optional coding workers (NOT installed by SAO)..."
+$workers = @("claude", "opencode", "codex", "aider", "cursor")
+$found = @()
+foreach ($w in $workers) {
+    if (Test-Command $w) {
+        $found += $w
+        Write-Host "   found: $w" -ForegroundColor Green
+    }
+}
+if ($found.Count -eq 0) {
+    Write-Host "   No external worker CLI found." -ForegroundColor Yellow
+    Write-Host "   Default worker = sira (Hermes itself handles coding tasks)." -ForegroundColor Yellow
+    Write-Host "   Optional later: sao set worker claude"
+} else {
+    Write-Host "   Tip: set preferred worker with: sao set worker $($found[0])" -ForegroundColor Cyan
+}
 
 Write-Host "--> CLI is provided by npm global package (sira-agentic-orchestrator)."
 Write-Host "    If 'sao' is missing, re-run: npm install -g git+https://github.com/gilangprtm/sao.git"
 
 Write-Host "`n==========================================" -ForegroundColor Green
 Write-Host "  Installation Complete!" -ForegroundColor Green
+Write-Host "  Core installed: Hermes + 9Router + Graphify" -ForegroundColor Green
+Write-Host "  Worker: optional (default = sira)" -ForegroundColor Green
 Write-Host "  Next steps:" -ForegroundColor Green
-Write-Host "    1. Download Obsidian (optional for AI, recommended for you): https://obsidian.md" -ForegroundColor Green
+Write-Host "    1. Download Obsidian (optional): https://obsidian.md" -ForegroundColor Green
 Write-Host "    2. sao create vault" -ForegroundColor Green
-Write-Host "    3. Open the vault folder in Obsidian (Open folder as vault)" -ForegroundColor Green
+Write-Host "    3. (optional) sao set worker claude" -ForegroundColor Green
 Write-Host "    4. sao start" -ForegroundColor Green
 Write-Host "==========================================" -ForegroundColor Green
