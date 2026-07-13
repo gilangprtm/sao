@@ -13,20 +13,7 @@ tags: [domain/meta, type/philosophy]
 
 ## Ringkasan CEO Dashboard
 
-- `wiki/projects/sira-ceo-framework.md` (Blueprint Framework)
-- `_templates/sira-ceo-dashboard-spec.md` (Blueprint Dashboard)
-- `wiki/resources/sira-ceo-state.json` (Live Dashboard Data)
-
-### SOP Dashboard Sync
-
-Sira (CEO) WAJIB mengupdate dashboard secara real-time via skill `ceo-dashboard-sync`:
-
-| Event | Command | Dashboard Effect |
-|---|---|---|
-| Task baru dari Tuan | `add_task <id> "<title>" <role> <priority>` | Kartu muncul di **Backlog** |
-| Mulai ngerjakan | `status <id> in_progress` + `agent <role> working` | Kartu pindah ke **In Progress** |
-| Kirim review ke Tuan | `status <id> review` + `agent <role> idle` | Kartu pindah ke **Review** |
-| Tuan approve / done | `status <id> done` | Kartu pindah ke **Done** |
+*(Dihapus di SAO v1.2.3: Integrasi visual dashboard ditiadakan pada mode vault murni untuk mengurangi noise. Status tracking kini berjalan via Markdown checklist atau integrasi eksternal opsional).*
 
 ---
 
