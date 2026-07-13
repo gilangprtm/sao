@@ -15,6 +15,7 @@ Powered by: **Hermes** (The Brain) + **9Router** (Token-saving Gateway) + **Grap
 - Git Bash / PowerShell
 - Python 3.11+ & `uv`
 - Node.js 20+
+- Git
 
 ### 2. Download Obsidian
 SAO needs a brain to store its knowledge, philosophy, and memory. We use Obsidian for this.
@@ -22,13 +23,13 @@ SAO needs a brain to store its knowledge, philosophy, and memory. We use Obsidia
 2. You don't need to create the Vault yet — SAO will generate the correct structure for you in the next steps.
 
 ### 3. Install SAO
-SAO provides a convenient NPM wrapper for global access.
+Install the SAO CLI globally directly from GitHub (no NPM registry required):
 
 ```powershell
-# Install the SAO CLI globally
-npm install -g sira-agentic-orchestrator
+# Install SAO CLI globally from GitHub
+npm install -g git+https://github.com/gilangprtm/sao.git
 
-# Run the SAO installer (clones services, sets up environments)
+# Run the SAO installer (clones Hermes, 9Router, Graphify + sets up environments)
 sao install
 ```
 
@@ -51,6 +52,17 @@ sao start
 - **9Router Dashboard**: http://localhost:20128
 - **Hermes Gateway**: http://localhost:8080
 - **Graphify MCP**: http://localhost:5001 (Indexing your Vault)
+
+## 📋 CLI Commands
+
+| Command | Description |
+|---------|-------------|
+| `sao install` | Clone & install Hermes, 9Router, Graphify, Claude Code |
+| `sao create vault` | Generate a new Obsidian Vault with Sira structure |
+| `sao setup vault` | Link an existing Vault (paste path) |
+| `sao start` | Launch all SAO services |
+| `sao status` | Check running services + vault path |
+| `sao stop` | Stop all SAO services |
 
 ## 🧠 How SAO Learns (The Subconscious Loop)
 

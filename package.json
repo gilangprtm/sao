@@ -1,12 +1,16 @@
 {
   "name": "sira-agentic-orchestrator",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "SAO (Sira Agentic Orchestrator) - Local-First AI Agent OS",
   "bin": {
     "sao": "./bin/sao.js"
   },
   "scripts": {
     "start": "node ./bin/sao.js start"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gilangprtm/sao.git"
   },
   "author": "Gilang",
   "license": "MIT"
