@@ -2,17 +2,56 @@
 
 const { execSync } = require('child_process');
 const path = require('path');
+const fs = require('fs');
+const os = require('os');
 
 const args = process.argv.slice(2);
 const command = args[0] || 'help';
 
-// SAO install dir is wherever this package is installed globally
 const SAO_DIR = path.resolve(__dirname, '..');
 const cliPath = path.join(SAO_DIR, 'cli.py');
 
+// Find Python executable (Windows-friendly)
+function findPython() {
+    const candidates = [
+        'python',
+        'py',
+        'python3',
+        // Common Hermes/Ryder locations
+        path.join(os.homedir(), 'AppData', 'Local', 'hermes', 'hermes-agent', 'venv', 'Scripts', 'python.exe'),
+        path.join(os.homedir(), 'AppData', 'Local', 'ryder', 'venv', 'Scripts', 'python.exe'),
+        path.join(os.homedir(), '.local', 'bin', 'python')
+    ];
+
+    // First try direct command
+    for (const cmd of ['python', 'py', 'python3']) {
+        try {
+            execSync(`${cmd} --version`, { stdio: 'ignore' });
+            return cmd;
+        } catch { continue; }
+    }
+
+    // Fallback: find any python.exe in PATH or common locations
+    for (const p of candidates) {
+        if (fs.existsSync(p)) {
+            try {
+                execSync(`"${p}" --version`, { stdio: 'ignore' });
+                return `"${p}"`;
+            } catch { continue; }
+        }
+    }
+
+    return null;
+}
+
 function runPythonCli() {
+    const py = findPython();
+    if (!py) {
+        console.error('❌ Python not found. Install Python 3.11+ from https://python.org and ensure it\'s in PATH.');
+        process.exit(1);
+    }
     try {
-        execSync(`python "${cliPath}" ${args.join(' ')}`, { stdio: 'inherit' });
+        execSync(`${py} "${cliPath}" ${args.join(' ')}`, { stdio: 'inherit' });
     } catch (e) {
         process.exit(1);
     }
