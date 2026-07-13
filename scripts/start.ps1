@@ -88,9 +88,57 @@ Start-Process -FilePath $graphifyPython -ArgumentList "-m", "graphify", $vaultPa
 # Wait for Graphify
 Start-Sleep -Seconds 3
 
-# 4. Inject Sira Environment Configs
-# User can configure Gateway via Hermes ~/.hermes/config.yaml or their own ENV.
-# SAO does not enforce 9Router or specific base URLs.
+# 4. Sync Hermes MCP graphify target to THIS vault path (never hardcode user folders)
+# Write vault path for agents/skills; patch graphify path in config without wiping whole file.
+$hermesConfigDir = Join-Path $env:USERPROFILE ".hermes"
+if (-Not (Test-Path $hermesConfigDir)) {
+    $hermesConfigDir = Join-Path $env:LOCALAPPDATA "hermes"
+}
+New-Item -ItemType Directory -Force -Path $hermesConfigDir -ErrorAction SilentlyContinue | Out-Null
+$vaultPathYaml = $vaultPath -replace '\\', '/'
+$vaultPointer = Join-Path $hermesConfigDir "sao_vault_path.txt"
+Set-Content -Path $vaultPointer -Value $vaultPathYaml -Encoding UTF8
+
+$hermesConfig = Join-Path $hermesConfigDir "config.yaml"
+try {
+    if (Test-Path $hermesConfig) {
+        $existing = Get-Content -Path $hermesConfig -Raw -ErrorAction SilentlyContinue
+        if ($null -eq $existing) { $existing = "" }
+        if ($existing -match "graphify:") {
+            # Only replace quoted path segments on graphify command lines
+            $updated = [regex]::Replace(
+                $existing,
+                '(?m)(command:\s*\[[^\]]*graphify[^\]]*,\s*")([^"]+)(")',
+                { param($m) $m.Groups[1].Value + $vaultPathYaml + $m.Groups[3].Value }
+            )
+            if ($updated -ne $existing) {
+                Set-Content -Path $hermesConfig -Value $updated -Encoding UTF8
+            }
+        } else {
+            $append = @"
+
+# SAO graphify MCP (vault from ~/.sao/config.json)
+mcp:
+  servers:
+    graphify:
+      command: ["python", "-m", "graphify", "--mcp", "$vaultPathYaml"]
+"@
+            Add-Content -Path $hermesConfig -Value $append -Encoding UTF8
+        }
+    } else {
+        $mcpBlock = @"
+# Managed path pointer also in sao_vault_path.txt — do not hardcode user home paths in skills.
+mcp:
+  servers:
+    graphify:
+      command: ["python", "-m", "graphify", "--mcp", "$vaultPathYaml"]
+"@
+        Set-Content -Path $hermesConfig -Value $mcpBlock -Encoding UTF8
+    }
+    Write-Host "--> Graphify vault target: $vaultPathYaml" -ForegroundColor Green
+} catch {
+    Write-Host "   Hermes MCP config sync skipped: $_" -ForegroundColor DarkGray
+}
 
 # 4.5 Register Subconscious Cron in Hermes if missing
 $hermesPython = Join-Path $baseDir "services\hermes\.venv\Scripts\python.exe"

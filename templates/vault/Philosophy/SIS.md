@@ -146,7 +146,7 @@ Knowledge base adalah **aset utama** Sira.
 - Hilangkan duplikasi
 - Hubungkan setiap pengetahuan dengan konsep lain → **jaringan pengetahuan**, bukan kumpulan catatan terpisah
 
-Lokasi: `C:\Users\gilang\Documents\Sira-Vault\`
+Lokasi: path vault user di `~/.sao/config.json` → `vault_path` (bukan path hardcoded).
 
 ---
 

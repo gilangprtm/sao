@@ -18,4 +18,4 @@ Run periodic memory sync and self-reflection in the background without user inte
 - **Daily Digest**: Writes a journal entry (`wiki/journal/YYYY-MM-DD.md`) listing today's sessions and enforcing the **Sira Self-Review Check**.
 
 ## Output
-All background activity is written directly to Sira-Vault (`Sessions/` and `wiki/journal/`). No external database is used.
+All background activity is written directly to the **user vault** (`Sessions/` and `wiki/journal/` under `vault_path` from `~/.sao/config.json`). No external database is used.
