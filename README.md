@@ -35,7 +35,7 @@ sao install
 ```powershell
 sao create vault
 ```
-*(You will be asked to name your Vault. SAO creates it under Documents and injects `AGENTS.md`, `wiki/`, `Philosophy/`, etc.)*
+*(You will be asked to name your Vault. SAO creates it under Documents and injects full DNA: `AGENTS.md`, `SCHEMA.md`, `Philosophy/SIS.md`, `Philosophy/SOM.md`, `wiki/`, `raw/`, `_templates/`.)*
 
 > Already have a vault folder? Link it with `sao setup vault`.
 
@@ -52,9 +52,29 @@ Tanpa Obsidian, SAO tetap jalan. Catatan tetap bisa diedit di VS Code / Notepad 
 ```powershell
 sao start
 ```
-- **9Router Dashboard**: http://localhost:20128
-- **Hermes Gateway**: http://localhost:8080
-- **Graphify MCP**: http://localhost:5001 (Indexing your Vault)
+- **9Router Dashboard**: http://localhost:20475
+- **Hermes Gateway**: http://localhost:20477
+- **Graphify MCP**: http://localhost:20476 (Indexing your Vault)
+
+## 📁 What `sao create vault` generates
+
+```
+Documents/<VaultName>/
+├── AGENTS.md              # Full agent rules (auto-read by Hermes)
+├── SCHEMA.md              # Folder map + vault rules
+├── Philosophy/
+│   ├── SIS.md             # Full Sira Intelligence System (DNA)
+│   └── SOM.md             # Full Sira Operating Manual (protocols)
+├── wiki/
+│   ├── index.md
+│   └── journal/           # Daily digests from subconscious
+├── raw/                   # Incoming sources
+├── ingested/              # Processed archive
+└── _templates/
+    └── note.md
+```
+
+> **HOM renamed to SOM** (Sira Operating Manual) — protocols belong to Sira, not Hermes branding.
 
 ## 📋 CLI Commands
 

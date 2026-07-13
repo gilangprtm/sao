@@ -27,9 +27,9 @@ START_SCRIPT = os.path.join(BASE_DIR, "scripts", "start.ps1")
 CONFIG_PATH = os.path.expanduser("~/.sao/config.json")
 
 SERVICES = {
-    "9Router": 20128,
-    "Graphify MCP": 5001,
-    "Hermes Core": 8080
+    "9Router": 20475,
+    "Graphify MCP": 20476,
+    "Hermes Core": 20477
 }
 
 def load_config():

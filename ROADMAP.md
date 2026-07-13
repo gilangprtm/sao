@@ -10,7 +10,7 @@ Berfokus menyatukan SAO sebagai mesin murni dengan Sira-Vault sebagai otak tungg
    - Modifikasi `subconscious.py` agar tidak menyimpan ke database, melainkan mengekstrak aktivitas task harian dan menulis file markdown langsung ke `C:\Users\gilang\Documents\Sira-Vault\wiki\journal\`.
    - Gunakan format YAML frontmatter yang sesuai dengan `SCHEMA.md` di Vault.
 2. **Graphify Native Tool**
-   - Buat tool Python native di Hermes (`default_api:graphify_query`) yang langsung menembak localhost:5001 (MCP). 
+   - Buat tool Python native di Hermes (`default_api:graphify_query`) yang langsung menembak localhost:20476 (MCP). 
    - Pastikan root directory Graphify MCP diarahkan absolut ke `C:\Users\gilang\Documents\Sira-Vault`.
 3. **Auto-Update Index**
    - Kaitkan webhook git atau file watcher sederhana agar setiap perubahan di Vault otomatis men-trigger `graphify --update`.

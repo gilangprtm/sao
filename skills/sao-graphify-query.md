@@ -1,6 +1,6 @@
 ---
 name: sao-graphify-query
-description: "Query Sira-Vault knowledge graph using local Graphify MCP server (port 5001)."
+description: "Query Sira-Vault knowledge graph using local Graphify MCP server (port 20476)."
 tags: ["graph", "vault", "mcp", "memory"]
 ---
 
@@ -10,7 +10,7 @@ tags: ["graph", "vault", "mcp", "memory"]
 Allow Sira (Hermes) to perform spatial reasoning over the entire Sira-Vault without reading thousands of files.
 
 ## How It Works
-Graphify MCP server is launched by `start.ps1` and listens on `localhost:5001`. It indexes `C:\Users\gilang\Documents\Sira-Vault`.
+Graphify MCP server is launched by `start.ps1` and listens on `localhost:20476`. It indexes `C:\Users\gilang\Documents\Sira-Vault`.
 
 ## Available Commands (via Hermes Tool)
 

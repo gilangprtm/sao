@@ -14,7 +14,8 @@ if (-Not (Test-Path "services\9router") -Or -Not (Test-Path "services\hermes")) 
 }
 
 # 1. Start 9Router Gateway
-Write-Host "--> Launching 9Router (Port 20128)..." -ForegroundColor Yellow
+Write-Host "--> Launching 9Router (Port 20475)..." -ForegroundColor Yellow
+$env:NINE_ROUTER_PORT = "20475"
 Start-Process -FilePath "npm" -ArgumentList "run", "dev" -WorkingDirectory "services\9router" -NoNewWindow
 
 # Wait for 9Router
@@ -39,26 +40,27 @@ if (-Not $vaultPath -Or -Not (Test-Path $vaultPath)) {
     exit 1
 }
 
-# 3. Start Graphify MCP Server (Port 5001)
-Write-Host "--> Launching Graphify MCP (Port 5001) — Indexing $vaultPath ..." -ForegroundColor Yellow
+# 3. Start Graphify MCP Server (Port 20476)
+Write-Host "--> Launching Graphify MCP (Port 20476) — Indexing $vaultPath ..." -ForegroundColor Yellow
 $graphifyPython = Join-Path $baseDir "services\graphify\.venv\Scripts\python.exe"
 if (-Not (Test-Path $graphifyPython)) {
     $graphifyPython = "python"
 }
-Start-Process -FilePath $graphifyPython -ArgumentList "-m", "graphify", $vaultPath, "--mcp" -WorkingDirectory "services\graphify" -NoNewWindow
+Start-Process -FilePath $graphifyPython -ArgumentList "-m", "graphify", $vaultPath, "--mcp", "--port", "20476" -WorkingDirectory "services\graphify" -NoNewWindow
 
 # Wait for Graphify
 Start-Sleep -Seconds 3
 
 # 4. Inject Sira Environment Configs
-$env:ANTHROPIC_BASE_URL = "http://localhost:20128/v1"
+$env:ANTHROPIC_BASE_URL = "http://localhost:20475/v1"
 $env:ANTHROPIC_DEFAULT_OPUS_MODEL = "fusion"
 $env:ANTHROPIC_DEFAULT_SONNET_MODEL = "fusion"
 $env:ANTHROPIC_DEFAULT_HAIKU_MODEL = "fusion"
 $env:CLAUDE_CODE_SUBAGENT_MODEL = "fusion"
 
 # 5. Start Hermes (The Brain)
-Write-Host "--> Launching Hermes Core (Port 8080)..." -ForegroundColor Yellow
+Write-Host "--> Launching Hermes Core (Port 20477)..." -ForegroundColor Yellow
+$env:HERMES_PORT = "20477"
 # Run python within the virtualenv
 $hermesPython = Join-Path $baseDir "services\hermes\.venv\Scripts\python.exe"
 if (-Not (Test-Path $hermesPython)) {

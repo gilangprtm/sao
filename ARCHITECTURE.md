@@ -14,10 +14,10 @@
 
 | Service | Bahasa | Port | Peran |
 |---------|--------|------|-------|
-| **Hermes** | Python | 8080/8081 | Commander. UI. Skill. Cron. Orchestrator |
-| **9Router** | TypeScript | 20128 | AI Gateway. Token saving. Auto-fallback |
+| **Hermes** | Python | 20477 | Commander. UI. Skill. Cron. Orchestrator |
+| **9Router** | TypeScript | 20475 | AI Gateway. Token saving. Auto-fallback |
 | **Claude Code** | Node.js | CLI | Development loop otonom (subprocess) |
-| **Graphify** | Python | 5001 | Knowledge graph codebase (MCP) — **Katalog & Index Vault** |
+| **Graphify** | Python | 20476 | Knowledge graph codebase (MCP) — **Katalog & Index Vault** |
 
 ---
 
