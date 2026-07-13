@@ -5,10 +5,35 @@
 
 ---
 
-**SAO** (Sira Agentic Orchestrator) is a local-first, multi-service personal AI operating system. It acts as the "engine" that powers your AI agent, while relying on a **Markdown vault folder** as its single source of truth and memory.
+**SAO** is not just another AI agent.
 
-**Core:** Hermes (Brain) + 9Router (Gateway) + Graphify (Knowledge Graph)  
-**Worker:** optional external coding CLI — or **Sira itself** by default.
+It is a **complete personal AI operating system** that runs 100% on your machine, uses your Obsidian vault as its permanent brain, and improves itself over time — without sending your data anywhere.
+
+### Why SAO?
+
+- **True Local-First**  
+  Everything (Hermes, 9Router, Graphify, memory) runs locally. No cloud, no telemetry, no API keys exposed.
+
+- **Your Vault is the Brain**  
+  SAO treats your Obsidian vault as the single source of truth. It reads, writes, and indexes your notes continuously.
+
+- **Self-Improving by Design**  
+  Every day at 09:00, SAO writes a structured daily digest into your vault. Graphify continuously builds a knowledge graph of your entire vault.
+
+- **Worker is Optional**  
+  By default, SAO uses itself (`sira`) as the coding worker. You can later plug Claude Code, OpenCode, or any CLI you prefer. No lock-in.
+
+- **One Command, Zero Maintenance**  
+  `sao install` handles everything: Hermes, 9Router, Graphify, and `uv`. No manual setup required.
+
+- **Philosophy Built-In**  
+  `sao create vault` generates a complete Sira-structured vault with full **SIS** (Sira Intelligence System) and **SOM** (Sira Operating Manual) — not empty placeholders.
+
+---
+
+**Powered by:** Hermes (Brain) + 9Router (Gateway) + Graphify (Knowledge Graph)
+
+---
 
 ## 🚀 Quick Start (Windows)
 
