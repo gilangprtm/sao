@@ -9,8 +9,17 @@ import subprocess
 import sys
 import os
 import socket
-import psutil
 import json
+
+def get_psutil():
+    try:
+        import psutil
+        return psutil
+    except ImportError:
+        print("Installing required module 'psutil'...")
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "psutil"])
+        import psutil
+        return psutil
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 START_SCRIPT = os.path.join(BASE_DIR, "scripts", "start.ps1")
@@ -187,6 +196,7 @@ def cmd_stop():
     print("🛑 Stopping SAO services...")
     stopped_any = False
     
+    psutil = get_psutil()
     for proc in psutil.process_iter(['pid', 'name']):
         try:
             connections = proc.connections()
