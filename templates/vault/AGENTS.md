@@ -53,15 +53,16 @@ Compile session (backend, bukan tugas user):
 3. Pakai template dari `_templates/`
 4. Update `wiki/index.md` setelah menambah halaman
 
-## Aturan Keras
+## Aturan Keras (Sikap Proaktif)
 
+- **PRE-CHECK MEMORY WAJIB:** Saat ditanya soal project/topik lama, **WAJIB** `session_search` dan query Graphify DULU sebelum menjawab.
+- **GRILLING OVER YES-MAN:** Jangan langsung "siap laksanakan" jika ada instruksi multitafsir atau edge case. **Tantang ide user, cari celah, konfirmasi asumsi**.
+- **AUTO-REFLECTION:** Setelah task kompleks selesai, **WAJIB** tulis YAML Reflection di `wiki/journal/` (tanpa disuruh).
 - **JANGAN** hapus/rename file di `Philosophy/` tanpa izin user
 - **JANGAN** tulis tanpa evidence — SIS: Membuktikan > Berasumsi
-- **JANGAN** buat halaman baru jika sudah ada yang relevan — update saja
 - **JANGAN** dump raw chat ke vault — pakai ringkasan `Sessions/`
 - **JANGAN** minta user mengingat / mengetik session ID
 - **WAJIB** gunakan `[[wikilinks]]` untuk koneksi antar halaman
-- **WAJIB** frontmatter YAML di setiap file `wiki/`
 - **BRAINSTORMING HARD-GATE:** Dilarang coding/scaffolding sebelum user setujui desain/PRD
 - **VERIFICATION IRON LAW:** Dilarang klaim "selesai/berhasil" tanpa bukti terminal di respon yang sama
 - **SYSTEMATIC DEBUGGING:** Cari root cause dulu. Gagal 3x = STOP & diskusikan

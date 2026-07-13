@@ -454,6 +454,15 @@ Related sessions are **auto-linked** — user never types session IDs.
 
     content += "\n## System Health\n- Subconscious daily pass completed.\n"
 
+    content += """
+## Sira Self-Review Check
+- [ ] Apakah kemarin ada task kompleks yang selesai?
+- [ ] Jika ada, apakah Reflection YAML sudah ditulis di atas?
+- [ ] Apakah insight baru dari bug/task kemarin sudah dipindah ke `wiki/` KB?
+- [ ] Apakah Sira melakukan *Grilling* atau sekadar *Yes-Man* kemarin?
+> Sira, jika ada kotak yang kosong/belum dilakukan dari task kemarin, segera lakukan perbaikan sekarang di awal session hari ini.
+"""
+
     with open(filepath, "w", encoding="utf-8") as f:
         f.write(content)
 
