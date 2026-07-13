@@ -4,10 +4,16 @@ SAO Subconscious Loop (Vault-Centric)
 
 Jobs:
   sync   — compile Hermes sessions → vault/Sessions/<id>.md
+           (+ auto-link related sessions — NO user input needed)
   daily  — sync + write wiki/journal/YYYY-MM-DD.md
   health — light service ping
 
 Triggered by Hermes cron or `sao log` / `sao log session <id>`.
+
+Design:
+  User may open NEW sessions (context window limits). Sira must still
+  recall prior work WITHOUT forcing user back to old session IDs.
+  Linking is automatic via title/topic/token overlap + Hermes parent_session_id.
 """
 
 import sys
@@ -15,10 +21,19 @@ import os
 import re
 import json
 import sqlite3
-from datetime import datetime, timedelta
+from datetime import datetime
+from collections import defaultdict
 
 CONFIG_PATH = os.path.expanduser("~/.sao/config.json")
 HERMES_STATE_DB = os.path.expanduser("~/AppData/Local/hermes/state.db")
+
+# tokens too common to use for relatedness
+_STOP = {
+    "the", "and", "for", "with", "this", "that", "from", "into", "your", "have",
+    "yang", "dan", "atau", "dengan", "untuk", "dari", "pada", "ini", "itu",
+    "saya", "kamu", "kita", "ada", "sudah", "belum", "bisa", "mau", "akan",
+    "session", "sira", "hermes", "sao", "user", "tuan", "please", "help",
+}
 
 
 def load_vault_path():
@@ -55,32 +70,135 @@ def _read_existing_meta(filepath):
         return 0
 
 
-def _compile_session_md(sess, messages):
-    sess_id = sess["id"]
-    title = sess["title"] or f"Session {sess_id}"
-    started_at = datetime.fromtimestamp(sess["started_at"]).strftime("%Y-%m-%d %H:%M:%S")
-    date_str = datetime.fromtimestamp(sess["started_at"]).strftime("%Y-%m-%d")
-    msg_count = sess["message_count"] or 0
+def _tokens(text):
+    if not text:
+        return set()
+    words = re.findall(r"[a-zA-Z0-9_\-]{3,}", text.lower())
+    return {w for w in words if w not in _STOP and not w.isdigit()}
 
+
+def _extract_session_signals(sess, messages):
+    """Build searchable signals for auto-related detection."""
+    title = sess["title"] or ""
     first_user = ""
-    last_assistant = ""
     topics = []
     for m in messages:
         role = m["role"]
         content = m["content"] or ""
         if role == "user" and not first_user:
             first_user = content
-        if role == "assistant" and content.strip():
-            last_assistant = content
-        # crude topic hints from user lines
         if role == "user" and content.strip():
             line = content.strip().split("\n")[0]
-            if 12 <= len(line) <= 120 and line not in topics:
+            # strip discord prefix like [enki]
+            line = re.sub(r"^\[[^\]]+\]\s*", "", line)
+            if 8 <= len(line) <= 140 and line not in topics:
                 topics.append(line)
-            if len(topics) >= 5:
+            if len(topics) >= 6:
                 break
 
+    bag = _tokens(title)
+    bag |= _tokens(first_user[:500])
+    for t in topics:
+        bag |= _tokens(t)
+
+    last_assistant = ""
+    for m in reversed(messages):
+        if m["role"] == "assistant" and (m["content"] or "").strip():
+            last_assistant = m["content"]
+            break
+
+    return {
+        "title": title,
+        "first_user": first_user,
+        "topics": topics,
+        "tokens": bag,
+        "last_assistant": last_assistant,
+        "parent_session_id": sess["parent_session_id"] if "parent_session_id" in sess.keys() else None,
+    }
+
+
+def _score_related(a_tokens, b_tokens, a_title, b_title):
+    if not a_tokens or not b_tokens:
+        return 0.0
+    inter = a_tokens & b_tokens
+    if not inter:
+        # title soft match
+        at = _tokens(a_title)
+        bt = _tokens(b_title)
+        inter = at & bt
+        if not inter:
+            return 0.0
+    union = a_tokens | b_tokens
+    jaccard = len(inter) / max(len(union), 1)
+    # boost if several meaningful overlaps
+    boost = min(len(inter), 5) * 0.03
+    return jaccard + boost
+
+
+def _find_related(sess_id, signals, catalog, limit=5):
+    """
+    Auto-find related past sessions. User never provides IDs.
+    Returns list of (other_id, score, title).
+    """
+    # hard link: Hermes parent_session_id
+    related = []
+    parent = signals.get("parent_session_id")
+    if parent and parent in catalog and parent != sess_id:
+        related.append((parent, 1.0, catalog[parent]["title"] or parent))
+
+    scored = []
+    for other_id, meta in catalog.items():
+        if other_id == sess_id:
+            continue
+        if parent and other_id == parent:
+            continue
+        score = _score_related(
+            signals["tokens"],
+            meta["tokens"],
+            signals["title"],
+            meta["title"],
+        )
+        if score >= 0.12:  # threshold: weak-but-real overlap
+            scored.append((other_id, score, meta["title"] or other_id))
+
+    scored.sort(key=lambda x: x[1], reverse=True)
+    for item in scored[:limit]:
+        if item[0] not in [r[0] for r in related]:
+            related.append(item)
+    return related[:limit]
+
+
+def _compile_session_md(sess, messages, related=None):
+    sess_id = sess["id"]
+    title = sess["title"] or f"Session {sess_id}"
+    started_at = datetime.fromtimestamp(sess["started_at"]).strftime("%Y-%m-%d %H:%M:%S")
+    date_str = datetime.fromtimestamp(sess["started_at"]).strftime("%Y-%m-%d")
+    msg_count = sess["message_count"] or 0
+
+    signals = _extract_session_signals(sess, messages)
+    topics = signals["topics"]
+    first_user = signals["first_user"]
+    last_assistant = signals["last_assistant"]
     topics_block = "\n".join(f"- {t}" for t in topics) if topics else "- (belum diekstrak)"
+
+    related = related or []
+    parent = signals.get("parent_session_id")
+
+    # frontmatter related ids (machine-readable)
+    related_ids = [r[0] for r in related]
+    related_yaml = json.dumps(related_ids, ensure_ascii=False)
+
+    related_block = ""
+    if related:
+        lines = []
+        for rid, score, rtitle in related:
+            tag = "parent" if rid == parent else f"sim={score:.2f}"
+            lines.append(f"- [[{rid}]] — {rtitle} ({tag})")
+        related_block = "\n".join(lines)
+    else:
+        related_block = "- (belum terdeteksi session terkait)"
+
+    continues_from = parent or (related_ids[0] if related_ids else "")
 
     return f"""---
 title: "{title.replace('"', "'")}"
@@ -90,6 +208,8 @@ session_id: "{sess_id}"
 source: "{sess['source'] or 'unknown'}"
 model: "{sess['model'] or 'unknown'}"
 message_count: {msg_count}
+continues_from: "{continues_from}"
+related_sessions: {related_yaml}
 status: compiled
 tags: [domain/session, type/session]
 ---
@@ -102,6 +222,11 @@ tags: [domain/session, type/session]
 - **Directory:** `{sess['cwd'] or 'N/A'}`
 - **Messages:** {msg_count}
 
+## Related Sessions (auto-detected)
+{related_block}
+
+> User **tidak** perlu tahu session ID. Sira pakai block ini untuk lanjut topik di session baru tanpa memaksa user balik ke thread lama.
+
 ## Topik (user prompts ringkas)
 {topics_block}
 
@@ -113,8 +238,28 @@ tags: [domain/session, type/session]
 
 ## Hubungan Wiki / Tindak Lanjut
 - *Tambah `[[wikilink]]` ke halaman wiki terkait jika topik ini perlu dilanjutkan.*
-- *Sira: cek file ini + Graphify sebelum mengulang diskusi yang sama.*
+- *Sira: baca related sessions di atas + Graphify — lanjut natural, jangan redirect user ke session lama.*
 """
+
+
+def _build_catalog(con, sessions):
+    """Preload tokens for relatedness across all sessions being synced."""
+    catalog = {}
+    for sess in sessions:
+        sid = sess["id"]
+        messages = con.execute(
+            "SELECT role, content FROM messages WHERE session_id = ? ORDER BY id ASC LIMIT 40",
+            (sid,),
+        ).fetchall()
+        signals = _extract_session_signals(sess, messages)
+        catalog[sid] = {
+            "title": signals["title"],
+            "tokens": signals["tokens"],
+            "parent": signals.get("parent_session_id"),
+            "messages": messages,  # reuse if short
+            "started_at": sess["started_at"],
+        }
+    return catalog
 
 
 def run_session_sync(vault_path, filter_session=None, force=False):
@@ -122,8 +267,8 @@ def run_session_sync(vault_path, filter_session=None, force=False):
     Compile Hermes state.db sessions into vault/Sessions/<id>.md
 
     - New sessions → create note
-    - Growing sessions (message_count naik) → rewrite note (obrolan memanjang)
-    - filter_session → only one id
+    - Growing sessions (message_count naik) → rewrite note
+    - Auto-link related sessions (NO user input / session IDs required)
     """
     if not os.path.exists(HERMES_STATE_DB):
         print(f"⚠️ Hermes state.db not found at {HERMES_STATE_DB}. Session sync skipped.")
@@ -132,33 +277,57 @@ def run_session_sync(vault_path, filter_session=None, force=False):
     sessions_dir = os.path.join(vault_path, "Sessions")
     os.makedirs(sessions_dir, exist_ok=True)
 
-    print("🔄 Syncing Hermes sessions → vault/Sessions/ ...")
+    print("🔄 Syncing Hermes sessions → vault/Sessions/ (auto-link related)...")
 
     con = sqlite3.connect(HERMES_STATE_DB)
     con.row_factory = sqlite3.Row
 
-    if filter_session:
-        query = """
-            SELECT id, title, started_at, message_count, source, model, cwd
-            FROM sessions
-            WHERE id = ?
-        """
-        params = (filter_session,)
-    else:
-        query = """
+    # Always load a broader catalog for relatedness (even when filtering one id)
+    catalog_query = """
+        SELECT id, title, started_at, message_count, source, model, cwd, parent_session_id
+        FROM sessions
+        WHERE message_count > 1
+        ORDER BY started_at DESC
+        LIMIT 200
+    """
+    try:
+        all_sessions = con.execute(catalog_query).fetchall()
+    except Exception:
+        # older schema without parent_session_id
+        all_sessions = con.execute(
+            """
             SELECT id, title, started_at, message_count, source, model, cwd
             FROM sessions
             WHERE message_count > 1
             ORDER BY started_at DESC
-        """
-        params = ()
+            LIMIT 200
+            """
+        ).fetchall()
 
-    try:
-        sessions = con.execute(query, params).fetchall()
-    except Exception as e:
-        print(f"❌ Failed to query sessions: {e}")
+    if filter_session:
+        sessions = [s for s in all_sessions if s["id"] == filter_session]
+        if not sessions:
+            # try direct fetch
+            try:
+                row = con.execute(
+                    "SELECT id, title, started_at, message_count, source, model, cwd, parent_session_id FROM sessions WHERE id = ?",
+                    (filter_session,),
+                ).fetchone()
+            except Exception:
+                row = con.execute(
+                    "SELECT id, title, started_at, message_count, source, model, cwd FROM sessions WHERE id = ?",
+                    (filter_session,),
+                ).fetchone()
+            sessions = [row] if row else []
+    else:
+        sessions = all_sessions
+
+    if not sessions:
+        print("⚪ No sessions to sync.")
         con.close()
         return 0
+
+    catalog = _build_catalog(con, all_sessions)
 
     created = 0
     updated = 0
@@ -170,12 +339,12 @@ def run_session_sync(vault_path, filter_session=None, force=False):
         existing_count = _read_existing_meta(filepath)
         current_count = sess["message_count"] or 0
 
-        # Skip unchanged notes unless force / filter single session
         if existing_count is not None and not force and filter_session is None:
             if existing_count == current_count:
                 skipped += 1
                 continue
 
+        # full messages for the note body
         messages = con.execute(
             "SELECT role, content FROM messages WHERE session_id = ? ORDER BY id ASC",
             (sess_id,),
@@ -184,7 +353,18 @@ def run_session_sync(vault_path, filter_session=None, force=False):
             skipped += 1
             continue
 
-        content = _compile_session_md(sess, messages)
+        signals = _extract_session_signals(sess, messages)
+        # refresh catalog entry with full signals
+        catalog[sess_id] = {
+            "title": signals["title"],
+            "tokens": signals["tokens"],
+            "parent": signals.get("parent_session_id"),
+            "messages": messages[:40],
+            "started_at": sess["started_at"],
+        }
+        related = _find_related(sess_id, signals, catalog, limit=5)
+
+        content = _compile_session_md(sess, messages, related=related)
         is_new = existing_count is None
         with open(filepath, "w", encoding="utf-8") as f:
             f.write(content)
@@ -210,7 +390,6 @@ def run_daily_digest(vault_path):
 
     today_sessions = []
     if os.path.exists(sessions_dir):
-        # filenames often start with YYYYMMDD_
         prefix = today_str.replace("-", "")
         for f in sorted(os.listdir(sessions_dir)):
             if not f.endswith(".md"):
@@ -218,7 +397,6 @@ def run_daily_digest(vault_path):
             if f.startswith(prefix) or today_str in f:
                 today_sessions.append(f[:-3])
 
-    # also scan frontmatter date: today for non-prefixed ids (cron_*, etc.)
     if os.path.exists(sessions_dir):
         for f in os.listdir(sessions_dir):
             if not f.endswith(".md"):
@@ -228,7 +406,7 @@ def run_daily_digest(vault_path):
                 continue
             try:
                 with open(os.path.join(sessions_dir, f), "r", encoding="utf-8") as fh:
-                    head = fh.read(400)
+                    head = fh.read(500)
                 if f"date: {today_str}" in head:
                     today_sessions.append(sid)
             except Exception:
@@ -257,6 +435,7 @@ tags: [domain/journal, type/journal]
 
 ## Executive Summary
 Compiled by SAO subconscious. Session notes live in `Sessions/`.
+Related sessions are **auto-linked** — user never types session IDs.
 
 ## Sessions Logged Today
 """
@@ -286,16 +465,15 @@ def run_health_check():
 
 
 if __name__ == "__main__":
+    # Support: python subconscious.py daily
+    #          python sao_subconscious.py   (cron no_agent may pass no args — default daily)
     vpath = load_vault_path()
     if not vpath or not os.path.exists(vpath):
         print("❌ Vault path not set or invalid. Run 'sao setup vault' first.")
         sys.exit(1)
 
-    if len(sys.argv) < 2:
-        print("Usage: python subconscious.py [daily|sync|health] [session_id]")
-        sys.exit(0)
+    cmd = sys.argv[1] if len(sys.argv) > 1 else "daily"
 
-    cmd = sys.argv[1]
     if cmd == "daily":
         run_session_sync(vpath)
         run_daily_digest(vpath)
@@ -306,3 +484,4 @@ if __name__ == "__main__":
         run_health_check()
     else:
         print(f"Unknown command: {cmd}")
+        print("Usage: python subconscious.py [daily|sync|health] [session_id]")
