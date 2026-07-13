@@ -146,23 +146,29 @@ Sets coding delegate. Default `sira`. Probes PATH and lists detected CLIs.
 | `sao start` | Everyday | Fast (incremental) | No — stale nodes can remain |
 | `sao start --clean-graph` | After mass delete / graph feels wrong | Slower (1–3+ min large vault) | **Yes** — wipe `graphify-out` + reindex `--force` |
 
-#### `sao log`
+#### `sao log` / `sao log list` / `sao log session <id>`
 Syncs Hermes conversation history into the vault:
 
 ```
 Hermes state.db (Discord / Telegram / CLI / TUI)
         │
         ▼
-  sao log  (or subconscious daily cron)
+  sao log  (manual)  OR  subconscious daily (09:00)
         │
         ▼
-  vault/Sessions/<session_id>.md
+  vault/Sessions/<session_id>.md   ← update if chat grows
         │
         ▼
-  wiki/journal/YYYY-MM-DD.md  (links today's sessions)
+  wiki/journal/YYYY-MM-DD.md
 ```
 
-Each session note contains: session ID, title, source platform, first user prompt, last Sira reply, and a placeholder for `[[wikilinks]]` to related wiki pages.
+| Command | Effect |
+|---------|--------|
+| `sao log` | Sync all sessions (create new + update if message_count naik) |
+| `sao log list` | List latest sessions + IN_VAULT / MISSING |
+| `sao log session <id>` | Force recompile one long-running session |
+
+Each session note: ID, title, source, topics, first prompt, last resolution, wikilink slot.
 
 #### `sao status`
 Services (ACTIVE/INACTIVE), vault path, worker config, detected CLIs.

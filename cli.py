@@ -363,20 +363,62 @@ def cmd_stop():
         print("\n⚪ No running SAO services detected.")
 
 
-def cmd_log_sessions():
-    """Sync Hermes session history into Sira-Vault/Sessions/"""
+def cmd_log_sessions(session_id=None, list_only=False):
+    """sao log | sao log list | sao log session <id>
+
+    - list: show Hermes sessions + vault note status
+    - session <id>: force recompile one growing session
+    - (default): sync all sessions (create new + update longer ones)
+    """
     config = load_config()
     vpath = config.get("vault_path")
     if not vpath or not os.path.isdir(vpath):
         print("❌ Vault path not configured. Run 'sao setup vault' first.")
         return
-    # Import the sync function
+
     try:
         sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-        from scripts.subconscious import run_session_sync
-        run_session_sync(vpath)
+        from scripts.subconscious import run_session_sync, HERMES_STATE_DB
     except Exception as e:
-        print(f"❌ Failed to sync sessions: {e}")
+        print(f"❌ Failed to import subconscious module: {e}")
+        return
+
+    if list_only:
+        import sqlite3
+        from datetime import datetime
+
+        if not os.path.exists(HERMES_STATE_DB):
+            print(f"❌ Hermes state.db not found: {HERMES_STATE_DB}")
+            return
+        sessions_dir = os.path.join(vpath, "Sessions")
+        con = sqlite3.connect(HERMES_STATE_DB)
+        con.row_factory = sqlite3.Row
+        rows = con.execute(
+            """
+            SELECT id, title, started_at, message_count, source
+            FROM sessions
+            WHERE message_count > 1
+            ORDER BY started_at DESC
+            LIMIT 40
+            """
+        ).fetchall()
+        con.close()
+        print(f"📋 Hermes sessions (latest 40) → vault: {vpath}")
+        print(f"{'STATUS':8} {'MSGS':>5}  {'SOURCE':10}  ID  TITLE")
+        for r in rows:
+            note = os.path.join(sessions_dir, f"{r['id']}.md")
+            status = "IN_VAULT" if os.path.exists(note) else "MISSING"
+            started = datetime.fromtimestamp(r["started_at"]).strftime("%m-%d %H:%M")
+            title = (r["title"] or "")[:40]
+            print(f"{status:8} {r['message_count']:>5}  {(r['source'] or '-'):10}  {r['id']}  {title}")
+            print(f"         started {started}")
+        return
+
+    if session_id:
+        print(f"🔄 Force sync session: {session_id}")
+        run_session_sync(vpath, filter_session=session_id, force=True)
+    else:
+        run_session_sync(vpath)
 
 
 def main():
@@ -402,8 +444,9 @@ def main():
     set_parser.add_argument("module", choices=["worker"], help="What to set (worker)")
     set_parser.add_argument("value", nargs="?", default=None, help="Worker name/cmd: sira | claude | opencode | <cli>")
 
-    # New command
-    subparsers.add_parser("log", help="Log Hermes sessions into Sira-Vault/Sessions/")
+    log_parser = subparsers.add_parser("log", help="Sync/list Hermes sessions into vault/Sessions/")
+    log_parser.add_argument("action", nargs="?", default=None, help="Optional: list | session | <session_id>")
+    log_parser.add_argument("session_id", nargs="?", default=None, help="Session id when action=session")
 
     args = parser.parse_args()
 
@@ -423,7 +466,20 @@ def main():
         if args.module == "worker":
             cmd_set_worker(args.value)
     elif args.command == "log":
-        cmd_log_sessions()
+        action = getattr(args, "action", None)
+        sid = getattr(args, "session_id", None)
+        if action == "list":
+            cmd_log_sessions(list_only=True)
+        elif action == "session":
+            if not sid:
+                print("Usage: sao log session <session_id>")
+            else:
+                cmd_log_sessions(session_id=sid)
+        elif action is None:
+            cmd_log_sessions()
+        else:
+            # allow: sao log <session_id>
+            cmd_log_sessions(session_id=action)
     else:
         parser.print_help()
 

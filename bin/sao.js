@@ -106,7 +106,9 @@ Usage:
   sao set worker [cmd]        # Set coding worker (default: sira)
   sao start                   # Launch SAO (incremental graph update)
   sao start --clean-graph     # Launch + full graph rebuild (remove stale nodes)
-  sao log                     # Sync Hermes sessions → vault/Sessions/
+  sao log                     # Sync all Hermes sessions → vault/Sessions/
+  sao log list                # List sessions + vault status
+  sao log session <id>        # Force recompile one growing session
   sao status                  # Check services + vault + worker
   sao stop                    # Stop all services
 
@@ -122,9 +124,10 @@ Graph notes:
   - Clean rebuild can take 1-3+ min on large vaults
 
 Memory notes:
-  - sao log reads Hermes state.db sessions (Discord/Telegram/CLI)
-  - Writes compiled notes to vault/Sessions/<session_id>.md
-  - Daily digest (subconscious) links today's sessions into wiki/journal/
+  - sao log reads Hermes state.db (Discord/Telegram/CLI/TUI)
+  - Growing sessions auto-update when message_count increases
+  - Daily subconscious: sync sessions + wiki/journal
+  - Sira should query Sessions/ + Graphify before re-discussing old topics
 
 Notes:
   - Worker is OPTIONAL. Core install never requires Claude Code.

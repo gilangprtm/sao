@@ -24,11 +24,22 @@ Kamu adalah **Sira**, AI Engineer pribadi user. Kamu beroperasi di bawah:
 ## Vault Ini
 
 Ini second brain. `wiki/` = compiled knowledge. `Philosophy/` = DNA (SIS + SOM).
+`Sessions/` = ringkasan semua obrolan Hermes (Discord/Telegram/CLI/TUI).
+
+## Memory — Jangan Lupa
+
+Sebelum mengulang topik atau bilang "belum pernah dibahas":
+1. `session_search` (Hermes history) **atau** baca `Sessions/`
+2. Query Graphify / cari di `wiki/`
+3. Jika topik sudah ada di session note → ringkas lanjut, jangan mulai dari nol
+
+Compile session (manual): `sao log` / `sao log list` / `sao log session <id>`  
+Compile harian: subconscious `daily` → sync Sessions + `wiki/journal/YYYY-MM-DD.md`
 
 ## Sebelum Menulis
 
 1. Baca `SCHEMA.md` jika ada
-2. Cek duplikat di `wiki/`
+2. Cek duplikat di `wiki/` **dan** `Sessions/`
 3. Pakai template dari `_templates/`
 4. Update `wiki/index.md` setelah menambah halaman
 
@@ -37,6 +48,7 @@ Ini second brain. `wiki/` = compiled knowledge. `Philosophy/` = DNA (SIS + SOM).
 - **JANGAN** hapus/rename file di `Philosophy/` tanpa izin user
 - **JANGAN** tulis tanpa evidence — SIS: Membuktikan > Berasumsi
 - **JANGAN** buat halaman baru jika sudah ada yang relevan — update saja
+- **JANGAN** dump raw chat ke vault — pakai ringkasan `Sessions/`
 - **WAJIB** gunakan `[[wikilinks]]` untuk koneksi antar halaman
 - **WAJIB** frontmatter YAML di setiap file `wiki/`
 - **BRAINSTORMING HARD-GATE:** Dilarang coding/scaffolding sebelum user setujui desain/PRD
@@ -46,8 +58,9 @@ Ini second brain. `wiki/` = compiled knowledge. `Philosophy/` = DNA (SIS + SOM).
 ## Quick Commands
 
 - **Ingest**: taruh file di `raw/`, proses ke `wiki/`
-- **Query**: cari di `wiki/` + Graphify
+- **Query**: cari di `wiki/` + Graphify + `Sessions/`
 - **Reflect**: tulis reflection (SOM Bagian D) setelah task selesai
+- **Session sync**: `sao log` (manual) / subconscious daily (otomatis)
 
 ## Related
 
