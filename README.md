@@ -30,7 +30,10 @@ It is a **personal AI operating system with permanent memory**. It treats your M
   `sao install` handles everything: Hermes, Graphify, and `uv`.
 
 - **Philosophy Built-In**  
-  `sao create vault` generates a complete Sira-structured vault with full **SIS** (Sira Intelligence System) and **SOM** (Sira Operating Manual).
+  `sao create vault` generates a complete Sira-structured vault with full **SIS** (Sira Intelligence System), **SOM** (Sira Operating Manual), and a **`.graphignore`** filter to keep the graph lean.
+
+- **Vault Cleaner**  
+  `sao ingest` automatically transforms messy raw files under `vault/raw/` into clean wiki notes — no deep manual structuring needed.
 
 ---
 
@@ -100,6 +103,7 @@ Usage:
   sao log                     # Sync all Hermes sessions → vault/Sessions/
   sao log list                # List sessions + vault status
   sao log session <id>        # Force recompile one growing session
+  sao ingest                  # Ingest raw files from vault/raw/ into wiki/
   sao status                  # Check services + vault + worker
   sao stop                    # Stop all services
 ```
@@ -155,6 +159,10 @@ Syncs Hermes conversation history into the vault:
 | `sao log session <id>` | Force recompile one long session |
 
 Related sessions are **auto-linked** via token similarity — user never types session IDs.
+
+#### `sao ingest`
+Reads messy files (TXT, DOCX, XLSX, raw notes) inside `vault/raw/`. 
+Sends them to Sira to compile into formatted Markdown notes under `vault/wiki/` (with YAML frontmatter and smart `[[wikilinks]]`), then archives the source file to `vault/ingested/` and runs a graph update.
 
 #### `sao status`
 Services (ACTIVE/INACTIVE), vault path, worker config.

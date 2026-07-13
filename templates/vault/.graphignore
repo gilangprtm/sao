@@ -1,0 +1,22 @@
+# SAO Graphify Ignore List
+# Exclude these from knowledge graph index
+raw/
+ingested/
+graphify-out/
+_templates/
+.git/
+.obsidian/
+.vscode/
+
+# Large binaries or media
+*.pdf
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.mp4
+*.mp3
+*.zip
+*.tar.gz
+*.sqlite
+*.db

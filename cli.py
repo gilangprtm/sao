@@ -447,6 +447,8 @@ def main():
     log_parser.add_argument("action", nargs="?", default=None, help="Optional: list | session | <session_id>")
     log_parser.add_argument("session_id", nargs="?", default=None, help="Session id when action=session")
 
+    subparsers.add_parser("ingest", help="Ingest raw files from vault/raw/ into wiki/ (clean structured Markdown)")
+
     args = parser.parse_args()
 
     if args.command == "start":
@@ -479,6 +481,12 @@ def main():
         else:
             # allow: sao log <session_id>
             cmd_log_sessions(session_id=action)
+    elif args.command == "ingest":
+        try:
+            from scripts.ingest import run_ingestion
+            run_ingestion()
+        except Exception as e:
+            print(f"❌ Failed to run ingestion: {e}")
     else:
         parser.print_help()
 

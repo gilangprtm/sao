@@ -91,6 +91,7 @@ switch (command) {
     case 'setup':
     case 'set':
     case 'log':
+    case 'ingest':
         runPythonCli();
         break;
     case '--help':
@@ -109,6 +110,7 @@ Usage:
   sao log                     # Sync all Hermes sessions → vault/Sessions/
   sao log list                # List sessions + vault status
   sao log session <id>        # Force recompile one growing session
+  sao ingest                  # Ingest raw files from vault/raw/ into wiki/
   sao status                  # Check services + vault + worker
   sao stop                    # Stop all services
 
