@@ -40,12 +40,22 @@ if (-Not $vaultPath -Or -Not (Test-Path $vaultPath)) {
     exit 1
 }
 
-# 3. Start Graphify MCP Server (Port 20476)
-Write-Host "--> Launching Graphify MCP (Port 20476) — Indexing $vaultPath ..." -ForegroundColor Yellow
+# 2.5 Auto-Update Graphify Index
 $graphifyPython = Join-Path $baseDir "services\graphify\.venv\Scripts\python.exe"
 if (-Not (Test-Path $graphifyPython)) {
     $graphifyPython = "python"
 }
+
+Write-Host "--> Updating Vault Graph Index (Incremental)..." -ForegroundColor Yellow
+try {
+    # Run inline, block until done. Incremental is very fast if no changes.
+    Start-Process -FilePath $graphifyPython -ArgumentList "-m", "graphify", "update", $vaultPath -WorkingDirectory "services\graphify" -NoNewWindow -Wait
+} catch {
+    Write-Host "    Graphify update skipped or failed. Continuing..." -ForegroundColor Yellow
+}
+
+# 3. Start Graphify MCP Server (Port 20476)
+Write-Host "--> Launching Graphify MCP (Port 20476) — Indexing $vaultPath ..." -ForegroundColor Yellow
 Start-Process -FilePath $graphifyPython -ArgumentList "-m", "graphify", $vaultPath, "--mcp", "--port", "20476" -WorkingDirectory "services\graphify" -NoNewWindow
 
 # Wait for Graphify
