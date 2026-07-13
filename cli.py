@@ -268,7 +268,7 @@ def cmd_set_worker(worker_cmd=None):
     print("   Sira will invoke this via terminal when delegating coding tasks.")
 
 
-def cmd_start():
+def cmd_start(clean_graph=False):
     config = load_config()
     if not config.get("vault_path"):
         print("❌ Error: Vault path is not set.")
@@ -278,11 +278,20 @@ def cmd_start():
     wname, wcmd = resolve_worker(config)
     print("🚀 Starting SAO (Sira Agentic Orchestrator)...")
     print(f"   Worker: {wname}" + (f" ({wcmd})" if wcmd else " [built-in]"))
-    subprocess.run([
+    if clean_graph:
+        print("   Graph: CLEAN rebuild (wipe stale nodes + full reindex)")
+    else:
+        print("   Graph: incremental update (use --clean-graph after big deletes)")
+
+    ps_args = [
         "powershell.exe",
         "-ExecutionPolicy", "Bypass",
         "-File", START_SCRIPT,
-    ])
+    ]
+    if clean_graph:
+        ps_args.append("-CleanGraph")
+
+    subprocess.run(ps_args)
 
 
 def cmd_status():
@@ -357,7 +366,12 @@ def main():
     parser = argparse.ArgumentParser(description="SAO — Sira Agentic Orchestrator CLI")
     subparsers = parser.add_subparsers(dest="command")
 
-    subparsers.add_parser("start", help="Launch all SAO services")
+    start_parser = subparsers.add_parser("start", help="Launch all SAO services")
+    start_parser.add_argument(
+        "--clean-graph",
+        action="store_true",
+        help="Full graph rebuild: wipe graphify-out + reindex (removes stale nodes from deleted files)",
+    )
     subparsers.add_parser("status", help="Show running status of SAO services")
     subparsers.add_parser("stop", help="Stop all SAO services")
 
@@ -374,7 +388,7 @@ def main():
     args = parser.parse_args()
 
     if args.command == "start":
-        cmd_start()
+        cmd_start(clean_graph=getattr(args, "clean_graph", False))
     elif args.command == "status":
         cmd_status()
     elif args.command == "stop":

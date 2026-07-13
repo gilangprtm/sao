@@ -99,19 +99,25 @@ switch (command) {
 SAO - Sira Agentic Orchestrator
 
 Usage:
-  sao install            # Install core: Hermes + 9Router + Graphify (+ auto uv)
-  sao create vault       # Generate Markdown vault with Sira structure
-  sao setup vault        # Link existing vault folder
-  sao set worker [cmd]   # Set coding worker (default: sira)
-  sao start              # Launch SAO services
-  sao status             # Check services + vault + worker
-  sao stop               # Stop all services
+  sao install                 # Install core: Hermes + 9Router + Graphify (+ auto uv)
+  sao create vault            # Generate Markdown vault with Sira structure
+  sao setup vault             # Link existing vault folder
+  sao set worker [cmd]        # Set coding worker (default: sira)
+  sao start                   # Launch SAO (incremental graph update)
+  sao start --clean-graph     # Launch + full graph rebuild (remove stale nodes)
+  sao status                  # Check services + vault + worker
+  sao stop                    # Stop all services
 
 Worker examples:
-  sao set worker sira        # Hermes itself (no external CLI)
-  sao set worker claude      # Claude Code CLI
-  sao set worker opencode    # OpenCode CLI
-  sao set worker <any-cmd>   # any binary on PATH
+  sao set worker sira         # Hermes itself (no external CLI)
+  sao set worker claude       # Claude Code CLI
+  sao set worker opencode     # OpenCode CLI
+  sao set worker <any-cmd>    # any binary on PATH
+
+Graph notes:
+  - Default start: incremental update (fast; only changed files)
+  - After deleting many vault files: sao start --clean-graph
+  - Clean rebuild can take 1-3+ min on large vaults
 
 Notes:
   - Worker is OPTIONAL. Core install never requires Claude Code.

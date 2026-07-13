@@ -76,7 +76,8 @@ Vault = Markdown folder. Obsidian is optional for AI, recommended for humans.
 
 ### 6. Launch
 ```powershell
-sao start
+sao start                  # everyday (fast incremental graph update)
+sao start --clean-graph    # after big deletes / stale graph nodes
 ```
 - **9Router**: http://localhost:20475
 - **Graphify MCP**: http://localhost:20476
@@ -92,22 +93,23 @@ Run `sao -h` or `sao --help` to show usage help.
 SAO - Sira Agentic Orchestrator
 
 Usage:
-  sao install            # Install core: Hermes + 9Router + Graphify (+ auto uv)
-  sao create vault       # Generate Markdown vault with Sira structure
-  sao setup vault        # Link existing vault folder
-  sao set worker [cmd]   # Set coding worker (default: sira)
-  sao start              # Launch SAO services
-  sao status             # Check services + vault + worker
-  sao stop               # Stop all services
+  sao install                 # Install core: Hermes + 9Router + Graphify (+ auto uv)
+  sao create vault            # Generate Markdown vault with Sira structure
+  sao setup vault             # Link existing vault folder
+  sao set worker [cmd]        # Set coding worker (default: sira)
+  sao start                   # Launch SAO (incremental graph update)
+  sao start --clean-graph     # Launch + full graph rebuild (remove stale nodes)
+  sao status                  # Check services + vault + worker
+  sao stop                    # Stop all services
 ```
 
 ### Detail Commands
 
 #### `sao install`
-Clones repository services (Hermes, 9Router, Graphify) into globally installed SAO module directory, bootstraps virtual environments via `uv`, installs package dependencies, and links executable PATH.
+Clones core services (Hermes, 9Router, Graphify), bootstraps envs via `uv`, installs deps. Does **not** install coding workers.
 
 #### `sao create vault`
-Interactively prompts for a new Vault folder name. Generates structure under `~/Documents/[VaultName]`:
+Interactively prompts for a vault name. Generates structure under `~/Documents/[VaultName]`:
 ```
 Documents/<VaultName>/
 ├── AGENTS.md              # Sira instructions (auto-read by Hermes)
@@ -117,31 +119,49 @@ Documents/<VaultName>/
 │   └── SOM.md             # Sira Operating Manual (protocols)
 ├── wiki/
 │   ├── index.md
-│   └── journal/           # Daily digests written by SAO subconscious
+│   └── journal/           # Daily digests (subconscious)
 ├── raw/                   # Unprocessed documents
-├── ingested/              # Archive directory
-├── graphify-out/          # Index folder for Graphify MCP
+├── ingested/              # Archive
+├── graphify-out/          # Graph index output
 └── _templates/
     └── note.md
 ```
 
 #### `sao setup vault`
-Lets you link an existing vault folder if you do not want to use `sao create vault`. Writes path to `~/.sao/config.json`.
+Link an existing vault folder. Writes path to `~/.sao/config.json`.
 
 #### `sao set worker [sira|claude|opencode|<cmd>]`
-Sets Sira's coding delegate command. Default is `sira`. Probes local environment and lists detected executors. Saves configuration to `~/.sao/config.json`.
+Sets coding delegate. Default `sira`. Probes PATH and lists detected CLIs.
 
-#### `sao start`
-Starts the local orchestrator:
-1. Runs 9Router (Port `20475`)
-2. Reads config and launches Graphify MCP indexing the target vault (Port `20476`)
-3. Starts Hermes Core (Port `20477`) with configuration injected.
+#### `sao start` / `sao start --clean-graph`
+1. Start 9Router (`20475`)
+2. Graphify index vault
+3. Start Graphify MCP (`20476`)
+4. Start Hermes (`20477`)
+
+| Mode | When | Speed | Removes deleted-file nodes? |
+|------|------|-------|-----------------------------|
+| `sao start` | Everyday | Fast (incremental) | No — stale nodes can remain |
+| `sao start --clean-graph` | After mass delete / graph feels wrong | Slower (1–3+ min large vault) | **Yes** — wipe `graphify-out` + reindex `--force` |
 
 #### `sao status`
-Inspects network ports and reports service statuses (ACTIVE/INACTIVE), currently configured vault path, and selected coding worker.
+Services (ACTIVE/INACTIVE), vault path, worker config, detected CLIs.
 
 #### `sao stop`
-Kills running SAO service processes listening on ports `20475` to `20477` gracefully or via force taskkill fallback.
+Stop processes on ports `20475`–`20477`.
+
+---
+
+## 🕸️ Vault → Graph flow
+
+```
+Vault Markdown  →  graphify update  →  graphify-out/graph.json  →  MCP query  →  Sira
+```
+
+- **Source of truth**: vault files (never replaced by the graph)
+- **Index**: `graphify-out/` (do not hand-edit)
+- **Default start**: incremental (add/edit only; usually seconds)
+- **After deletes**: `sao start --clean-graph` (stale nodes otherwise remain)
 
 ---
 
@@ -152,9 +172,9 @@ Kills running SAO service processes listening on ports `20475` to `20477` gracef
 | **sira** (default) | Hermes handles coding tasks itself | No |
 | **claude** | `claude` CLI on PATH | Optional |
 | **opencode** | `opencode` CLI on PATH | Optional |
-| **custom** | any CLI you pass to `sao set worker` | Optional |
+| **custom** | any CLI via `sao set worker` | Optional |
 
-Config stored in `~/.sao/config.json`:
+Config `~/.sao/config.json`:
 ```json
 {
   "vault_path": "C:\\Users\\you\\Documents\\MyVault",
@@ -165,14 +185,17 @@ Config stored in `~/.sao/config.json`:
 
 ## FAQ
 
-### Apakah vault wajib pakai Obsidian?
-**Tidak.**  
-Vault SAO = folder berisi Markdown + struktur `AGENTS.md` / `wiki/` / `Philosophy/`.  
-- **SAO (AI)**: hanya butuh path folder → Graphify index → baca/tulis file.  
-- **Obsidian**: editor manusia (recommended). Bisa diganti VS Code, Logseq, atau editor lain.
+### Is Claude Code required?
+**No.** Default worker is `sira`.
+
+### Is Obsidian required?
+**No.** Vault is a Markdown folder. Obsidian is recommended for humans.
+
+### Will every `sao start` take 1 minute?
+**No.** First index can be slow. Later starts use **incremental** update (seconds if little changed). Use `--clean-graph` only when you need a full rebuild.
 
 ### Linux / macOS / VPS?
-Core design is local-first. Windows installer is ready; Linux/macOS scripts are planned. Manual service setup still works on Linux.
+Windows installer ready. Linux/macOS scripts planned. Manual service setup works on Linux.
 
 ## 📜 License
 MIT

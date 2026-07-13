@@ -1,4 +1,8 @@
 # scripts/start.ps1
+param(
+    [switch]$CleanGraph
+)
+
 $ErrorActionPreference = "Stop"
 
 $baseDir = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
@@ -40,22 +44,53 @@ if (-Not $vaultPath -Or -Not (Test-Path $vaultPath)) {
     exit 1
 }
 
-# 2.5 Auto-Update Graphify Index
+# 2.5 Update Graphify Index
 $graphifyPython = Join-Path $baseDir "services\graphify\.venv\Scripts\python.exe"
 if (-Not (Test-Path $graphifyPython)) {
     $graphifyPython = "python"
 }
 
-Write-Host "--> Updating Vault Graph Index (Incremental)..." -ForegroundColor Yellow
-try {
-    # Run inline, block until done. Incremental is very fast if no changes.
-    Start-Process -FilePath $graphifyPython -ArgumentList "-m", "graphify", "update", $vaultPath -WorkingDirectory "services\graphify" -NoNewWindow -Wait
-} catch {
-    Write-Host "    Graphify update skipped or failed. Continuing..." -ForegroundColor Yellow
+$graphifyOut = Join-Path $vaultPath "graphify-out"
+
+if ($CleanGraph) {
+    Write-Host "--> Clean graph rebuild (full)..." -ForegroundColor Yellow
+    Write-Host "    This removes stale nodes (deleted vault files) and rebuilds index." -ForegroundColor Yellow
+    Write-Host "    First run / large vault can take 1-3+ minutes." -ForegroundColor Yellow
+
+    # Wipe previous graph artifacts so deleted files cannot leave ghost nodes
+    if (Test-Path $graphifyOut) {
+        try {
+            Get-ChildItem -Path $graphifyOut -Force -ErrorAction SilentlyContinue |
+                Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+            Write-Host "    Cleared: $graphifyOut" -ForegroundColor DarkYellow
+        } catch {
+            Write-Host "    Could not fully clear graphify-out: $_" -ForegroundColor Yellow
+        }
+    }
+    New-Item -ItemType Directory -Force -Path $graphifyOut | Out-Null
+
+    try {
+        # --force: overwrite even if rebuild has fewer nodes (handles deletions)
+        Start-Process -FilePath $graphifyPython `
+            -ArgumentList "-m", "graphify", "update", $vaultPath, "--force" `
+            -WorkingDirectory "services\graphify" -NoNewWindow -Wait
+    } catch {
+        Write-Host "    Clean graph rebuild failed. Continuing with MCP..." -ForegroundColor Yellow
+    }
+} else {
+    Write-Host "--> Updating Vault Graph Index (Incremental)..." -ForegroundColor Yellow
+    Write-Host "    Only changed files re-indexed (usually seconds)." -ForegroundColor DarkGray
+    try {
+        Start-Process -FilePath $graphifyPython `
+            -ArgumentList "-m", "graphify", "update", $vaultPath `
+            -WorkingDirectory "services\graphify" -NoNewWindow -Wait
+    } catch {
+        Write-Host "    Graphify update skipped or failed. Continuing..." -ForegroundColor Yellow
+    }
 }
 
 # 3. Start Graphify MCP Server (Port 20476)
-Write-Host "--> Launching Graphify MCP (Port 20476) — Indexing $vaultPath ..." -ForegroundColor Yellow
+Write-Host "--> Launching Graphify MCP (Port 20476) — serving $vaultPath ..." -ForegroundColor Yellow
 Start-Process -FilePath $graphifyPython -ArgumentList "-m", "graphify", $vaultPath, "--mcp", "--port", "20476" -WorkingDirectory "services\graphify" -NoNewWindow
 
 # Wait for Graphify
@@ -71,12 +106,10 @@ $env:CLAUDE_CODE_SUBAGENT_MODEL = "fusion"
 # 5. Start Hermes (The Brain)
 Write-Host "--> Launching Hermes Core (Port 20477)..." -ForegroundColor Yellow
 $env:HERMES_PORT = "20477"
-# Run python within the virtualenv
 $hermesPython = Join-Path $baseDir "services\hermes\.venv\Scripts\python.exe"
 if (-Not (Test-Path $hermesPython)) {
     $hermesPython = "python"
 }
 Start-Process -FilePath $hermesPython -ArgumentList "-m", "hermes_api" -WorkingDirectory "services\hermes" -NoNewWindow -Wait
 
-# Sira will close gracefully when Hermes exits
 Write-Host "`nSAO closed." -ForegroundColor Green
