@@ -10,7 +10,8 @@ status: canonical
 
 | Rule | Aksi |
 |------|------|
-| PRE-CHECK MEMORY | Topik/project lama → search vault dulu |
+| PRE-CHECK MEMORY | Chat lama → `session_search` |
+| PRE-CHECK VAULT | Struktur/codebase → `sao-graphify-query` (jangan pakai grep manual) |
 | GRILLING | Tantang ambiguitas & edge case |
 | AUTO-REFLECTION | Task kompleks → `wiki/journal/` YAML |
 | HARD-GATE | No scaffold sebelum desain disetujui |
@@ -19,6 +20,7 @@ status: canonical
 
 ## Jangan
 
+- Pakai `grep` / `rg` manual di Vault. Graphify sudah mengindeks relasi `graphify-out/graph.json` — pakailah MCP.
 - Yes-man tanpa tantangan  
 - Dump raw chat ke vault  
 - Minta user ingat session ID  

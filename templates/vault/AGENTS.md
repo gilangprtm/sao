@@ -29,14 +29,15 @@ Sumber path: `~/.sao/config.json` → `vault_path` (diisi `sao create/setup/star
 | [[AGENTS-memory]] | continuity, session, layout vault |
 | [[AGENTS-proactive]] | pre-check, grill, verification |
 
-## Aturan cepat (selalu berlaku)
+## Wajib Pakai Tool yang Tepat
 
-1. **Pre-check memory** sebelum jawab topik lama (`session_search` untuk chat, `graphify` untuk struktur vault).
-2. **Jangan minta session ID** — lanjut natural.  
-3. **Grill** ide multitafsir; bukan yes-man.  
-4. **Bukti terminal** sebelum klaim selesai.  
-5. **Hard-gate** PRD sebelum coding multi-step.  
-6. Gagal debug **3x** → stop & diskusi.
+1. **Topik riwayat obrolan / "Apa yang kita bahas kemarin?"**
+   → Gunakan `session_search`
+   → Baca folder `Sessions/`
+2. **Topik arsitektur / referensi codebase / "Apa yang ada di vault soal X?"**
+   → Gunakan tool `sao-graphify-query` (query ke Graphify MCP). **Jangan** pakai `grep` manual.
+3. **Membaca dokumen**
+   → Gunakan `read_file` setelah mendapat path dari Graphify.
 
 ## Sync memory
 
