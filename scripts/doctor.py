@@ -277,16 +277,38 @@ def check_graphify_mcp_config(report: Report, vault: str):
 
 
 def check_hermes_runtime(report: Report):
-    port = 20477
-    if _port_open(port):
-        report.add("hermes_port", "PASS", f"localhost:{port} accepting connections")
+    # we don't ping port 20477 anymore; we check if the global hermes executable exists
+    candidates = []
+    local = os.environ.get("LOCALAPPDATA") or ""
+    home = os.path.expanduser("~")
+    if local:
+        candidates.extend([
+            os.path.join(local, "hermes", "hermes-agent", "venv", "Scripts", "hermes.exe"),
+            os.path.join(local, "hermes", "bin", "hermes.exe"),
+        ])
+    candidates.extend([
+        os.path.join(home, ".local", "bin", "hermes.exe"),
+        os.path.join(home, ".hermes", "hermes-agent", "venv", "Scripts", "hermes.exe"),
+        os.path.join(home, ".hermes", "bin", "hermes"),
+    ])
+    found = None
+    for c in candidates:
+        if c and os.path.isfile(c):
+            found = c
+            break
+    if not found:
+        import shutil
+        found = shutil.which("hermes")
+
+    if found:
+        report.add("hermes_executable", "PASS", f"Found at {found}")
     else:
         report.add(
-            "hermes_port",
+            "hermes_executable",
             "WARN",
-            f"Port {port} closed — Hermes not running as SAO API (gateway may still be up elsewhere)",
+            "Hermes official CLI not found. Run: sao install",
         )
-    # global hermes skill copy
+    # global hermes skill copy# global hermes skill copy
     local = os.environ.get("LOCALAPPDATA", "")
     skill_dirs = [
         os.path.join(local, "hermes", "skills") if local else "",

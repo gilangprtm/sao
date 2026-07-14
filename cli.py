@@ -17,11 +17,8 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 START_SCRIPT = os.path.join(BASE_DIR, "scripts", "start.ps1")
 CONFIG_PATH = os.path.expanduser("~/.sao/config.json")
 
-SERVICES = {
-    # Graphify is launched by Hermes as stdio MCP (no fixed HTTP port required).
-    # Optional legacy HTTP port kept only for status probe if user still runs it.
-    "Hermes Core": 20477,
-}
+# Hermes is installed officially (global CLI/Desktop). No fixed SAO-owned API port.
+# Status/stop use process detection, not port 20477.
 
 # Known coding worker CLIs (optional — SAO never requires them)
 KNOWN_WORKERS = [
@@ -503,44 +500,164 @@ def cmd_start(clean_graph=False):
     subprocess.run(ps_args)
 
 
+
+def find_hermes_exe():
+    """Locate official Hermes CLI binary (not services/hermes clone)."""
+    candidates = []
+    local = os.environ.get("LOCALAPPDATA") or ""
+    home = os.path.expanduser("~")
+    if local:
+        candidates.extend([
+            os.path.join(local, "hermes", "hermes-agent", "venv", "Scripts", "hermes.exe"),
+            os.path.join(local, "hermes", "bin", "hermes.exe"),
+        ])
+    candidates.extend([
+        os.path.join(home, ".local", "bin", "hermes.exe"),
+        os.path.join(home, ".hermes", "hermes-agent", "venv", "Scripts", "hermes.exe"),
+        os.path.join(home, ".hermes", "bin", "hermes"),
+    ])
+    for c in candidates:
+        if c and os.path.isfile(c):
+            return c
+    which = shutil.which("hermes")
+    if which:
+        return which
+    return None
+
+
+def detect_hermes_runtime():
+    """
+    Detect Hermes install + running processes.
+    Returns dict: installed_path, cli_running, desktop_running, gateway_running, processes
+    """
+    info = {
+        "installed_path": find_hermes_exe(),
+        "cli_running": False,
+        "desktop_running": False,
+        "gateway_running": False,
+        "processes": [],
+    }
+    psutil = get_psutil()
+    try:
+        for proc in psutil.process_iter(["pid", "name", "cmdline"]):
+            try:
+                name = (proc.info.get("name") or "").lower()
+                cmdline = proc.info.get("cmdline") or []
+                cmd = " ".join(str(x) for x in cmdline).lower() if cmdline else ""
+                is_hermes = (
+                    "hermes" in name
+                    or "hermes.exe" in name
+                    or (
+                        "hermes" in cmd
+                        and (
+                            "gateway" in cmd
+                            or "chat" in cmd
+                            or "desktop" in cmd
+                            or "gui" in cmd
+                        )
+                    )
+                )
+                is_desktop = (
+                    name in ("hermes.exe", "hermes desktop.exe", "hermes-desktop.exe")
+                    or ("electron" in name and "hermes" in cmd)
+                    or ("desktop" in cmd and "hermes" in cmd)
+                )
+                is_gateway = "gateway" in cmd and "hermes" in (name + " " + cmd)
+                is_cli = (
+                    ("hermes" in name or "hermes" in cmd)
+                    and ("chat" in cmd or "hermes_cli" in cmd)
+                    and "gateway" not in cmd
+                )
+                if is_hermes or is_desktop or is_gateway:
+                    label = "hermes"
+                    if is_desktop:
+                        label = "desktop"
+                        info["desktop_running"] = True
+                    if is_gateway:
+                        label = "gateway"
+                        info["gateway_running"] = True
+                    if is_cli:
+                        info["cli_running"] = True
+                    info["processes"].append({
+                        "pid": proc.info.get("pid"),
+                        "name": proc.info.get("name"),
+                        "label": label,
+                    })
+                    if is_hermes and not is_desktop:
+                        info["cli_running"] = info["cli_running"] or ("gateway" not in cmd)
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                continue
+    except Exception:
+        pass
+    if info["processes"] and not (
+        info["cli_running"] or info["desktop_running"] or info["gateway_running"]
+    ):
+        info["cli_running"] = True
+    return info
+
+
 def cmd_status():
-    print("📊 SAO Services Status:")
-    all_ok = True
-    for name, port in SERVICES.items():
-        active = is_port_in_use(port)
-        status_str = "ACTIVE" if active else "INACTIVE"
-        color = "\033[92m" if active else "\033[91m"
-        print(f"  - {name} (Port {port}): {color}{status_str}\033[0m")
-        if not active:
-            all_ok = False
+    green = "\033[92m"
+    red = "\033[91m"
+    yellow = "\033[93m"
+    reset = "\033[0m"
+
+    print("📊 SAO Status")
+    print("─" * 40)
+
+    rt = detect_hermes_runtime()
+    if rt["installed_path"]:
+        print(f"  Hermes install: {green}FOUND{reset}")
+        print(f"    {rt['installed_path']}")
+    else:
+        print(f"  Hermes install: {red}NOT FOUND{reset}")
+        print("    Run: sao install   (official Hermes installer)")
+
+    def mark(ok):
+        return f"{green}RUNNING{reset}" if ok else f"{yellow}off{reset}"
+
+    print(f"  Desktop:  {mark(rt['desktop_running'])}")
+    print(f"  Gateway:  {mark(rt['gateway_running'])}")
+    print(f"  CLI/chat: {mark(rt['cli_running'])}")
+    if rt["processes"]:
+        for pinfo in rt["processes"][:8]:
+            print(f"    · {pinfo['label']}  pid={pinfo['pid']}  {pinfo['name']}")
+    runtime_up = rt["desktop_running"] or rt["gateway_running"] or rt["cli_running"]
 
     config = load_config()
     vault = config.get("vault_path")
-    if vault:
-        print(f"\n📂 Target Vault: {vault}")
+    if vault and os.path.isdir(vault):
+        print(f"\n📂 Vault: {vault}")
+    elif vault:
+        print(f"\n📂 Vault: {yellow}path missing{reset} → {vault}")
     else:
-        print("\n📂 Target Vault: NOT CONFIGURED (Run 'sao create vault' or 'sao setup vault')")
+        print(f"\n📂 Vault: {red}NOT CONFIGURED{reset} (sao create vault / sao setup vault)")
 
     wname, wcmd = resolve_worker(config)
     print(f"🛠️  Worker: {wname}" + (f"  cmd=`{wcmd}`" if wcmd else "  [built-in Hermes/Sira]"))
     found = detect_workers()
     if found:
         print("   Available CLIs: " + ", ".join(w["cmd"] for w in found))
-    else:
-        print("   Available CLIs: (none detected)")
 
     try:
         from scripts.subconscious import resolve_hermes_state_db
         sdb = resolve_hermes_state_db()
-        print(f"🗄️  state.db: {sdb or 'NOT FOUND'}")
+        if sdb and os.path.isfile(sdb):
+            print(f"🗄️  state.db: {sdb}")
+        else:
+            print(f"🗄️  state.db: {yellow}not found yet{reset} (appears after first Hermes chat)")
     except Exception:
         print("🗄️  state.db: (resolver unavailable)")
 
-    if all_ok:
-        print("\n🟢 All services are running properly.")
+    print()
+    if runtime_up and vault and rt["installed_path"]:
+        print(f"{green}🟢 SAO ready — Hermes is up, vault bound.{reset}")
+    elif rt["installed_path"] and vault:
+        print(f"{yellow}🟡 Hermes installed, not running. Open Desktop or: sao start{reset}")
     else:
-        print("\n🔴 Some services are offline. Run 'sao start' to launch them.")
-    print("💡 Full health: sao doctor   ·   Smoke: sao doctor --smoke")
+        print(f"{red}🔴 Setup incomplete. sao install → sao create vault → sao start{reset}")
+    print("💡 Full health: sao doctor")
+
 
 
 def cmd_doctor(smoke=False, strict=False, as_json=False, fresh=False):
@@ -563,40 +680,47 @@ def cmd_doctor(smoke=False, strict=False, as_json=False, fresh=False):
     sys.exit(code)
 
 
-def cmd_stop():
-    print("🛑 Stopping SAO services...")
-    stopped_any = False
 
+def cmd_stop():
+    """Stop Hermes processes started for SAO (gateway/cli). Desktop may stay if user wants."""
+    print("🛑 Stopping Hermes processes (gateway/cli)...")
+    stopped_any = False
     psutil = get_psutil()
-    for proc in psutil.process_iter(["pid", "name"]):
+    kill_names = {
+        "hermes.exe",
+        "hermes",
+    }
+    for proc in psutil.process_iter(["pid", "name", "cmdline"]):
         try:
-            connections = proc.connections()
-            for conn in connections:
-                if conn.laddr.port in SERVICES.values():
-                    print(f"  - Killing {proc.info['name']} (PID: {proc.info['pid']}) on Port {conn.laddr.port}...")
-                    proc.kill()
-                    stopped_any = True
-                    break
+            name = (proc.info.get("name") or "").lower()
+            cmdline = proc.info.get("cmdline") or []
+            cmd = " ".join(str(x) for x in cmdline).lower() if cmdline else ""
+            match = False
+            if name in kill_names or name == "hermes.exe":
+                match = True
+            if "hermes" in cmd and (
+                "gateway" in cmd
+                or "hermes_cli" in cmd
+                or " chat" in cmd
+                or cmd.endswith("chat")
+            ):
+                match = True
+            if name in ("hermes.exe",) and ("desktop" in cmd or "gui" in cmd or not cmd):
+                match = True
+            if not match:
+                continue
+            print(f"  - Stopping {proc.info.get('name')} (PID {proc.info.get('pid')})...")
+            proc.kill()
+            stopped_any = True
         except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
             continue
 
-    for port in SERVICES.values():
-        try:
-            output = subprocess.check_output(f"netstat -ano | grep :{port}", shell=True).decode()
-            for line in output.strip().split("\n"):
-                parts = line.split()
-                if len(parts) > 4:
-                    pid = parts[-1]
-                    print(f"  - Force taskkill PID {pid} on port {port}...")
-                    subprocess.run(["taskkill", "/F", "/PID", pid], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                    stopped_any = True
-        except subprocess.CalledProcessError:
-            continue
-
     if stopped_any:
-        print("\n🟢 All SAO services stopped successfully.")
+        print("\n🟢 Stopped Hermes process(es).")
     else:
-        print("\n⚪ No running SAO services detected.")
+        print("\n⚪ No Hermes process detected (Desktop may already be closed).")
+    print("💡 Tip: close Hermes Desktop from the app tray if it is still open.")
+
 
 
 def cmd_log_sessions(session_id=None, list_only=False):
