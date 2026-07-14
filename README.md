@@ -105,6 +105,8 @@ Usage:
   sao log session <id>        # Force recompile one growing session
   sao ingest                  # Ingest raw files from vault/raw/ into wiki/
   sao status                  # Check services + vault + worker
+  sao doctor                  # Health check (vault, state.db, MCP, skills)
+  sao doctor --smoke          # Health + isolated smoke tests
   sao stop                    # Stop all services
 ```
 
@@ -167,7 +169,19 @@ Reads messy files (TXT, DOCX, XLSX, raw notes) inside `vault/raw/`.
 Sends them to Sira to compile into formatted Markdown notes under `vault/wiki/` (with YAML frontmatter and smart `[[wikilinks]]`), then archives the source file to `vault/ingested/` and runs a graph update.
 
 #### `sao status`
-Services (ACTIVE/INACTIVE), vault path, worker config.
+Services (ACTIVE/INACTIVE), vault path, worker config, state.db path.
+
+#### `sao doctor` / `sao doctor --smoke`
+Health check: package files, vault structure, AGENTS inject, Hermes pointers, `state.db` schema, Graphify MCP registration, skills copy.
+
+| Flag | Effect |
+|------|--------|
+| (none) | Health only |
+| `--smoke` | + isolated temp vault (inject, pointer, session sync dry-run; **restores** your config) |
+| `--strict` | WARN counts as failure (exit 1) |
+| `--json` | CI-friendly JSON report |
+
+Exit `0` if no FAIL. Use after install or when something feels off.
 
 #### `sao stop`
 Stop SAO-managed processes (Hermes on `20477`). Graphify has no separate SAO process when using stdio MCP.

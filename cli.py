@@ -469,10 +469,36 @@ def cmd_status():
     else:
         print("   Available CLIs: (none detected)")
 
+    try:
+        from scripts.subconscious import resolve_hermes_state_db
+        sdb = resolve_hermes_state_db()
+        print(f"🗄️  state.db: {sdb or 'NOT FOUND'}")
+    except Exception:
+        print("🗄️  state.db: (resolver unavailable)")
+
     if all_ok:
         print("\n🟢 All services are running properly.")
     else:
         print("\n🔴 Some services are offline. Run 'sao start' to launch them.")
+    print("💡 Full health: sao doctor   ·   Smoke: sao doctor --smoke")
+
+
+def cmd_doctor(smoke=False, strict=False, as_json=False):
+    """Health check + optional isolated smoke test."""
+    try:
+        from scripts.doctor import main as doctor_main
+    except Exception as e:
+        print(f"❌ Failed to load doctor module: {e}")
+        sys.exit(1)
+    argv = []
+    if smoke:
+        argv.append("--smoke")
+    if strict:
+        argv.append("--strict")
+    if as_json:
+        argv.append("--json")
+    code = doctor_main(argv)
+    sys.exit(code)
 
 
 def cmd_stop():
@@ -584,6 +610,26 @@ def main():
     subparsers.add_parser("status", help="Show running status of SAO services")
     subparsers.add_parser("stop", help="Stop all SAO services")
 
+    doctor_parser = subparsers.add_parser(
+        "doctor",
+        help="Health check (vault, state.db, MCP config, skills). Use --smoke for isolated tests.",
+    )
+    doctor_parser.add_argument(
+        "--smoke",
+        action="store_true",
+        help="Also run isolated temp-vault smoke (bind, inject, session sync dry-run)",
+    )
+    doctor_parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="Treat WARN as failure (exit 1)",
+    )
+    doctor_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="JSON report for CI",
+    )
+
     setup_parser = subparsers.add_parser("setup", help="Setup SAO configurations")
     setup_parser.add_argument("module", choices=["vault"], help="Module to setup (e.g., vault)")
 
@@ -608,6 +654,12 @@ def main():
         cmd_status()
     elif args.command == "stop":
         cmd_stop()
+    elif args.command == "doctor":
+        cmd_doctor(
+            smoke=getattr(args, "smoke", False),
+            strict=getattr(args, "strict", False),
+            as_json=getattr(args, "json", False),
+        )
     elif args.command == "setup":
         if args.module == "vault":
             cmd_setup_vault()

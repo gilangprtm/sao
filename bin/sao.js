@@ -92,6 +92,7 @@ switch (command) {
     case 'set':
     case 'log':
     case 'ingest':
+    case 'doctor':
         runPythonCli();
         break;
     case '--help':
@@ -112,6 +113,8 @@ Usage:
   sao log session <id>        # Force recompile one growing session
   sao ingest                  # Ingest raw files from vault/raw/ into wiki/
   sao status                  # Check services + vault + worker
+  sao doctor                  # Health check (vault, state.db, MCP, skills)
+  sao doctor --smoke          # Health + isolated smoke tests
   sao stop                    # Stop all services
 
 Worker examples:
