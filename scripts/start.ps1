@@ -1,5 +1,6 @@
 # scripts/start.ps1
-# SAO start: vault bind → graph update → Hermes owns Graphify MCP (stdio) → subconscious cron → Hermes core
+# SAO start: vault bind -> graph update -> Hermes owns Graphify MCP (stdio) -> subconscious cron -> Hermes core
+# ASCII-only comments (PowerShell on Windows may mis-parse UTF-8 em dashes as mojibake)
 param(
     [switch]$CleanGraph
 )
@@ -12,15 +13,15 @@ Set-Location $baseDir
 Write-Host "==========================================" -ForegroundColor Cyan
 Write-Host "  Starting SAO (Sira Agentic Orchestrator)" -ForegroundColor Cyan
 Write-Host "==========================================" -ForegroundColor Cyan
+Write-Host "  Version: package start.ps1 (ASCII-safe)" -ForegroundColor DarkGray
 
-# Check if services exist (local clone under SAO). Global Hermes still works for MCP/env bind.
-$hasLocalHermes = Test-Path "services\hermes"
-$hasLocalGraphify = Test-Path "services\graphify"
+$hasLocalHermes = Test-Path (Join-Path $baseDir "services\hermes")
+$hasLocalGraphify = Test-Path (Join-Path $baseDir "services\graphify")
 if (-Not $hasLocalHermes) {
     Write-Host "   Note: services\hermes not under SAO package (optional if Hermes already global)." -ForegroundColor DarkGray
 }
 if (-Not $hasLocalGraphify) {
-    Write-Host "   Note: services\graphify missing — graph update/MCP will use system 'python -m graphify' if available." -ForegroundColor DarkGray
+    Write-Host "   Note: services\graphify missing - graph update/MCP will use system python -m graphify if available." -ForegroundColor DarkGray
 }
 
 # 1. Read Vault Path from Config
@@ -29,10 +30,10 @@ $vaultPath = ""
 
 if (Test-Path $saoConfigPath) {
     try {
-        $config = Get-Content -Path $saoConfigPath -Raw | ConvertFrom-Json
+        $config = Get-Content -Path $saoConfigPath -Raw -Encoding UTF8 | ConvertFrom-Json
         $vaultPath = $config.vault_path
     } catch {
-        Write-Host "   Config read error. Using default." -ForegroundColor Yellow
+        Write-Host "   Config read error: $_" -ForegroundColor Yellow
     }
 }
 
@@ -42,17 +43,18 @@ if (-Not $vaultPath -Or -Not (Test-Path $vaultPath)) {
     exit 1
 }
 
-# 1b. Resolve Hermes state.db (for subconscious + env)
+# 1b. Resolve Hermes state.db
 $stateDbCandidates = @(
     (Join-Path $env:LOCALAPPDATA "hermes\state.db"),
-    (Join-Path $env:USERPROFILE ".hermes\state.db"),
-    (Join-Path $env:USERPROFILE "AppData\Local\hermes\state.db")
+    (Join-Path $env:USERPROFILE ".hermes\state.db")
 )
 $hermesStateDb = $null
 foreach ($c in $stateDbCandidates) {
-    if (Test-Path $c) { $hermesStateDb = $c; break }
+    if ($c -and (Test-Path $c)) {
+        $hermesStateDb = $c
+        break
+    }
 }
-# Prefer newest if multiple profiles later
 if (-Not $hermesStateDb) {
     $searchRoots = @(
         (Join-Path $env:LOCALAPPDATA "hermes"),
@@ -63,12 +65,14 @@ if (-Not $hermesStateDb) {
             $hit = Get-ChildItem -Path $root -Filter "state.db" -Recurse -ErrorAction SilentlyContinue |
                 Sort-Object LastWriteTime -Descending |
                 Select-Object -First 1
-            if ($hit) { $hermesStateDb = $hit.FullName; break }
+            if ($hit) {
+                $hermesStateDb = $hit.FullName
+                break
+            }
         }
     }
 }
 
-# Export env for Hermes, workers, subconscious children
 $env:SAO_VAULT_PATH = $vaultPath
 $env:SAO_HOME = Join-Path $env:USERPROFILE ".sao"
 if ($hermesStateDb) {
@@ -76,19 +80,38 @@ if ($hermesStateDb) {
     $env:SAO_HERMES_STATE_DB = $hermesStateDb
     Write-Host "--> Hermes state.db: $hermesStateDb" -ForegroundColor Green
 } else {
-    Write-Host "--> Hermes state.db: not found yet (will appear after first Hermes run)" -ForegroundColor Yellow
+    Write-Host "--> Hermes state.db: not found yet (appears after first Hermes run)" -ForegroundColor Yellow
 }
 Write-Host "--> SAO_VAULT_PATH=$vaultPath" -ForegroundColor Green
 
-# 2. Update Graphify Index (files only — MCP process owned by Hermes)
+# 2. Graphify python + index update
 $graphifyPython = Join-Path $baseDir "services\graphify\.venv\Scripts\python.exe"
 if (-Not (Test-Path $graphifyPython)) {
     $graphifyPython = "python"
 }
-$graphifyPython = (Resolve-Path $graphifyPython -ErrorAction SilentlyContinue)
-if (-Not $graphifyPython) { $graphifyPython = "python" } else { $graphifyPython = $graphifyPython.Path }
+$graphifyWorkDir = Join-Path $baseDir "services\graphify"
+if (-Not (Test-Path $graphifyWorkDir)) {
+    $graphifyWorkDir = $baseDir
+}
 
 $graphifyOut = Join-Path $vaultPath "graphify-out"
+
+function Invoke-GraphifyUpdate {
+    param([string[]]$ExtraArgs)
+    $argList = @("-m", "graphify", "update", $vaultPath) + $ExtraArgs
+    try {
+        if (Test-Path (Join-Path $baseDir "services\graphify\.venv\Scripts\python.exe")) {
+            & $graphifyPython @argList
+        } else {
+            & python -m graphify update $vaultPath @ExtraArgs 2>$null
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host "    Graphify update skipped or failed. Continuing..." -ForegroundColor Yellow
+            }
+        }
+    } catch {
+        Write-Host "    Graphify update skipped or failed. Continuing..." -ForegroundColor Yellow
+    }
+}
 
 if ($CleanGraph) {
     Write-Host "--> Clean graph rebuild (full)..." -ForegroundColor Yellow
@@ -102,169 +125,176 @@ if ($CleanGraph) {
         }
     }
     New-Item -ItemType Directory -Force -Path $graphifyOut | Out-Null
-    try {
-        Start-Process -FilePath $graphifyPython `
-            -ArgumentList "-m", "graphify", "update", $vaultPath, "--force" `
-            -WorkingDirectory "services\graphify" -NoNewWindow -Wait
-    } catch {
-        Write-Host "    Clean graph rebuild failed. Continuing..." -ForegroundColor Yellow
-    }
+    Invoke-GraphifyUpdate -ExtraArgs @("--force")
 } else {
     Write-Host "--> Updating Vault Graph Index (Incremental)..." -ForegroundColor Yellow
-    try {
-        Start-Process -FilePath $graphifyPython `
-            -ArgumentList "-m", "graphify", "update", $vaultPath `
-            -WorkingDirectory "services\graphify" -NoNewWindow -Wait
-    } catch {
-        Write-Host "    Graphify update skipped or failed. Continuing..." -ForegroundColor Yellow
+    Invoke-GraphifyUpdate -ExtraArgs @()
+}
+
+# 3. Sync Graphify MCP into Hermes config (stdio - Hermes owns lifecycle)
+function Get-HermesConfigPath {
+    $candidates = @(
+        (Join-Path $env:LOCALAPPDATA "hermes\config.yaml"),
+        (Join-Path $env:USERPROFILE ".hermes\config.yaml")
+    )
+    foreach ($c in $candidates) {
+        if (Test-Path $c) { return $c }
     }
-}
-
-# 3. NO separate Graphify HTTP process (port 20476).
-#    Hermes launches Graphify as stdio MCP from mcp_servers — auto restart with Hermes.
-
-# 4. Sync Hermes config: vault pointer + mcp_servers.graphify (stdio)
-$hermesConfigDir = Join-Path $env:LOCALAPPDATA "hermes"
-if (-Not (Test-Path $hermesConfigDir)) {
-    $hermesConfigDir = Join-Path $env:USERPROFILE ".hermes"
-}
-New-Item -ItemType Directory -Force -Path $hermesConfigDir -ErrorAction SilentlyContinue | Out-Null
-$vaultPathYaml = $vaultPath -replace '\\', '/'
-$stateDbYaml = if ($hermesStateDb) { ($hermesStateDb -replace '\\', '/') } else { "" }
-
-# Pointer files (also written by cli.py bind_vault; keep in sync here)
-$pointer = @{
-    vault_path        = $vaultPath
-    vault_path_posix  = $vaultPathYaml
-    hermes_state_db   = $hermesStateDb
-    updated_at        = (Get-Date -Format "o")
-} | ConvertTo-Json
-Set-Content -Path (Join-Path $hermesConfigDir "sao_vault_path.txt") -Value $vaultPathYaml -Encoding UTF8
-Set-Content -Path (Join-Path $hermesConfigDir "sao_vault.json") -Value $pointer -Encoding UTF8
-$homeHermes = Join-Path $env:USERPROFILE ".hermes"
-if (Test-Path $homeHermes) {
-    Set-Content -Path (Join-Path $homeHermes "sao_vault_path.txt") -Value $vaultPathYaml -Encoding UTF8
-    Set-Content -Path (Join-Path $homeHermes "sao_vault.json") -Value $pointer -Encoding UTF8
-}
-
-# Prefer venv python absolute path for MCP (resilient)
-$graphifyPyForMcp = $graphifyPython -replace '\\', '/'
-$vaultForMcp = $vaultPathYaml
-
-$hermesConfig = Join-Path $hermesConfigDir "config.yaml"
-# Also try USERPROFILE .hermes
-if (-Not (Test-Path $hermesConfig)) {
-    $alt = Join-Path $env:USERPROFILE ".hermes\config.yaml"
-    if (Test-Path $alt) { $hermesConfig = $alt }
+    # Create default under LOCALAPPDATA
+    $dir = Join-Path $env:LOCALAPPDATA "hermes"
+    New-Item -ItemType Directory -Force -Path $dir | Out-Null
+    $path = Join-Path $dir "config.yaml"
+    if (-Not (Test-Path $path)) {
+        Set-Content -Path $path -Value "# Hermes config (created by SAO start)`n" -Encoding UTF8
+    }
+    return $path
 }
 
 function Set-SaoGraphifyMcp {
-    param([string]$ConfigPath, [string]$Py, [string]$Vault)
-    if (-Not (Test-Path $ConfigPath)) {
-        $block = @"
-# SAO-managed Graphify MCP (stdio — Hermes owns lifecycle)
-mcp_servers:
-  graphify:
-    command: $Py
-    args: ["-m", "graphify", "--mcp", "$Vault"]
-    enabled: true
-"@
-        Set-Content -Path $ConfigPath -Value $block -Encoding UTF8
-        return
-    }
-    $raw = Get-Content -Path $ConfigPath -Raw -ErrorAction SilentlyContinue
+    param(
+        [string]$ConfigPath,
+        [string]$Py,
+        [string]$Vault
+    )
+    if (-Not (Test-Path $ConfigPath)) { return }
+
+    $raw = Get-Content -Path $ConfigPath -Raw -Encoding UTF8
     if ($null -eq $raw) { $raw = "" }
 
-    # If graphify already under mcp_servers, rewrite command/args block for graphify only
-    if ($raw -match "(?m)^\s*graphify\s*:") {
-        # Replace command line under graphify
-        $raw = [regex]::Replace(
-            $raw,
-            '(?ms)(graphify\s*:\s*\r?\n(?:[ \t]+[^\r\n]*\r?\n)*?)',
-            {
-                param($m)
-@"
-graphify:
-    command: $Py
-    args: ["-m", "graphify", "--mcp", "$Vault"]
-    enabled: true
+    $vaultNorm = $Vault -replace '\\', '/'
+    $pyNorm = $Py -replace '\\', '/'
 
-"@
+    # Remove previous SAO-managed graphify blocks (simple line scrub)
+    $lines = $raw -split "`r?`n"
+    $out = New-Object System.Collections.Generic.List[string]
+    $skip = $false
+    $depth = 0
+    foreach ($line in $lines) {
+        if ($line -match '^\s*graphify\s*:') {
+            $skip = $true
+            $depth = 0
+            continue
+        }
+        if ($skip) {
+            if ($line -match '^\S' -and $line -notmatch '^\s') {
+                $skip = $false
+            } elseif ($line -match '^\s+\S' -or $line -match '^\s*$') {
+                continue
+            } else {
+                $skip = $false
             }
-        )
-        # Fallback simple path replace on old style command: ["python", "-m", "graphify", ...]
-        $raw = [regex]::Replace(
-            $raw,
-            '(?m)(command:\s*\[.*"graphify".*)"([^"]+)"(\s*\])',
-            { param($m) $m.Groups[1].Value + "`"$Vault`"" + $m.Groups[3].Value }
-        )
-        Set-Content -Path $ConfigPath -Value $raw -Encoding UTF8
-    } elseif ($raw -match "(?m)^mcp_servers\s*:") {
-        $append = @"
+        }
+        if (-Not $skip) {
+            [void]$out.Add($line)
+        }
+    }
+    $raw = ($out -join "`n")
 
-  graphify:
-    command: $Py
-    args: ["-m", "graphify", "--mcp", "$Vault"]
-    enabled: true
-"@
-        # Insert after mcp_servers:
-        $raw = [regex]::Replace($raw, '(?m)^(mcp_servers\s*:\s*\r?\n)', "`$1$append")
-        Set-Content -Path $ConfigPath -Value $raw -Encoding UTF8
-    } else {
-        $append = @"
+    $block = @"
 
-# SAO-managed Graphify MCP (stdio — Hermes owns lifecycle)
+# SAO-managed Graphify MCP (stdio - Hermes owns lifecycle)
 mcp_servers:
   graphify:
-    command: $Py
-    args: ["-m", "graphify", "--mcp", "$Vault"]
+    command: $pyNorm
+    args: ["-m", "graphify", "--mcp", "$vaultNorm"]
     enabled: true
 "@
-        Add-Content -Path $ConfigPath -Value $append -Encoding UTF8
+
+    if ($raw -match '(?m)^mcp_servers\s*:') {
+        # Insert graphify under existing mcp_servers
+        $insert = @"
+  graphify:
+    command: $pyNorm
+    args: ["-m", "graphify", "--mcp", "$vaultNorm"]
+    enabled: true
+"@
+        # If graphify already removed above, append after mcp_servers:
+        $raw = [regex]::Replace($raw, '(?m)^(mcp_servers\s*:\s*\r?\n)', "`$1$insert")
+    } else {
+        $raw = $raw.TrimEnd() + "`n" + $block + "`n"
     }
+
+    Set-Content -Path $ConfigPath -Value $raw -Encoding UTF8
 }
+
+$hermesConfig = Get-HermesConfigPath
+$graphifyPyForMcp = $graphifyPython
+if ($graphifyPython -eq "python") {
+    try {
+        $which = (Get-Command python -ErrorAction SilentlyContinue).Source
+        if ($which) { $graphifyPyForMcp = $which }
+    } catch { }
+}
+$vaultForMcp = ($vaultPath -replace '\\', '/')
 
 try {
     Set-SaoGraphifyMcp -ConfigPath $hermesConfig -Py $graphifyPyForMcp -Vault $vaultForMcp
-    # Dual-write if both hermes dirs exist
     $other = Join-Path $env:USERPROFILE ".hermes\config.yaml"
     if ((Test-Path $other) -and ($other -ne $hermesConfig)) {
         Set-SaoGraphifyMcp -ConfigPath $other -Py $graphifyPyForMcp -Vault $vaultForMcp
     }
-    Write-Host "--> Graphify MCP (stdio) registered in Hermes config for: $vaultForMcp" -ForegroundColor Green
+    Write-Host "--> Graphify MCP (stdio) registered in Hermes config: $hermesConfig" -ForegroundColor Green
 } catch {
     Write-Host "   Hermes MCP config sync skipped: $_" -ForegroundColor DarkGray
 }
 
-# 4.5 Register Subconscious Cron in Hermes if missing
+# 4. Copy subconscious script + optional cron
 $hermesPython = Join-Path $baseDir "services\hermes\.venv\Scripts\python.exe"
 if (-Not (Test-Path $hermesPython)) {
-    $hermesPython = "python"
+    $globalHermes = Join-Path $env:LOCALAPPDATA "hermes\hermes-agent\venv\Scripts\python.exe"
+    if (Test-Path $globalHermes) {
+        $hermesPython = $globalHermes
+    } else {
+        $hermesPython = "python"
+    }
 }
+
 try {
     $saoScript = Join-Path $baseDir "scripts\subconscious.py"
     $hermesScripts = Join-Path $env:LOCALAPPDATA "hermes\scripts"
     New-Item -ItemType Directory -Force -Path $hermesScripts -ErrorAction SilentlyContinue | Out-Null
     $targetScript = Join-Path $hermesScripts "sao_subconscious.py"
-    Copy-Item -Path $saoScript -Destination $targetScript -Force -ErrorAction SilentlyContinue
+    if (Test-Path $saoScript) {
+        Copy-Item -Path $saoScript -Destination $targetScript -Force -ErrorAction SilentlyContinue
+    }
 
     $existingCron = & $hermesPython -m hermes_cli cron list 2>$null | Select-String "sao_subconscious"
     if (-Not $existingCron) {
         Write-Host "--> Registering Daily Subconscious Cron in Hermes..." -ForegroundColor Yellow
-        & $hermesPython -m hermes_cli cron create --name "SAO Subconscious Daily" --schedule "0 9 * * *" --script "sao_subconscious.py" --no-agent --deliver local | Out-Null
+        & $hermesPython -m hermes_cli cron create --name "SAO Subconscious Daily" --schedule "0 9 * * *" --script "sao_subconscious.py" --no-agent --deliver local 2>$null | Out-Null
     }
 } catch {
     Write-Host "   Auto-cron register skipped." -ForegroundColor DarkGray
 }
 
-# 5. Start Hermes (The Brain) — owns Graphify MCP lifecycle via stdio
+# 5. Start Hermes Core
 Write-Host "--> Launching Hermes Core (Port 20477)..." -ForegroundColor Yellow
 Write-Host "    Graphify: managed by Hermes MCP (stdio), not a separate port." -ForegroundColor DarkGray
 $env:HERMES_PORT = "20477"
-$hermesPython = Join-Path $baseDir "services\hermes\.venv\Scripts\python.exe"
-if (-Not (Test-Path $hermesPython)) {
-    $hermesPython = "python"
-}
-Start-Process -FilePath $hermesPython -ArgumentList "-m", "hermes_api" -WorkingDirectory "services\hermes" -NoNewWindow -Wait
 
-Write-Host "`nSAO closed." -ForegroundColor Green
+$hermesWorkDir = Join-Path $baseDir "services\hermes"
+$hermesPyStart = Join-Path $hermesWorkDir ".venv\Scripts\python.exe"
+
+if (Test-Path $hermesPyStart) {
+    Write-Host "    Using local services\hermes venv" -ForegroundColor DarkGray
+    Start-Process -FilePath $hermesPyStart -ArgumentList "-m", "hermes_api" -WorkingDirectory $hermesWorkDir -NoNewWindow -Wait
+} else {
+    # Fallback: try hermes CLI on PATH / global install
+    $hermesCmd = Get-Command hermes -ErrorAction SilentlyContinue
+    if ($hermesCmd) {
+        Write-Host "    Using global 'hermes' CLI" -ForegroundColor DarkGray
+        Write-Host "    Tip: for gateway, run Hermes the way you already use on this machine." -ForegroundColor DarkGray
+        try {
+            & hermes 2>&1 | Out-Host
+        } catch {
+            Write-Host "    hermes CLI failed: $_" -ForegroundColor Yellow
+        }
+    } else {
+        Write-Host "    ERROR: services\hermes not ready and 'hermes' not on PATH." -ForegroundColor Red
+        Write-Host "    Fix:" -ForegroundColor Yellow
+        Write-Host "      1) Re-run: sao install" -ForegroundColor Yellow
+        Write-Host "      2) Or install Hermes Agent globally, then start it yourself" -ForegroundColor Yellow
+        Write-Host "      3) After Hermes runs once, state.db appears under %LOCALAPPDATA%\hermes\" -ForegroundColor Yellow
+        exit 1
+    }
+}

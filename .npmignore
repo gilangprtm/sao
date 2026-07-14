@@ -1,0 +1,11 @@
+# Keep scripts, templates, skills, docs in the published package
+# Exclude only heavy/local junk (services are cloned by sao install)
+services/
+.venv/
+**/__pycache__/
+**/*.pyc
+.git/
+.sao/
+*.db
+.hermes/
+node_modules/
