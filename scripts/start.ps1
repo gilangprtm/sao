@@ -282,28 +282,37 @@ try {
     }
 
     $listOut = Invoke-HermesCron -CronArgs @("cron", "list") 2>&1 | Out-String
-    $hasDaily = $listOut -match "sao_subconscious|SAO Subconscious"
+    $hasDaily = $listOut -match "sao_subconscious|SAO Subconscious|Session Sync"
     if (-Not $hasDaily) {
         Write-Host "--> Registering SAO Subconscious cron (daily 09:00 + every 1h session sync)..." -ForegroundColor Yellow
         # schedule is POSITIONAL (not --schedule)
-        $c1 = Invoke-HermesCron -CronArgs @(
+        # Hermes prints "Created job: ..." to stdout; exit code may be 0 even when stderr has warnings
+        $out1 = Invoke-HermesCron -CronArgs @(
             "cron", "create", "0 9 * * *",
             "--name", "SAO Subconscious Daily",
             "--script", "sao_subconscious.py",
             "--no-agent",
             "--deliver", "local"
-        )
-        $c2 = Invoke-HermesCron -CronArgs @(
+        ) 2>&1 | Out-String
+        $out2 = Invoke-HermesCron -CronArgs @(
             "cron", "create", "every 1h",
             "--name", "SAO Session Sync 1h",
             "--script", "sao_subconscious.py",
             "--no-agent",
             "--deliver", "local"
-        )
-        if (($c1 -eq 0) -or ($c2 -eq 0)) {
-            Write-Host "    Cron registered. Keep Hermes gateway running for jobs to fire." -ForegroundColor Green
+        ) 2>&1 | Out-String
+        $listAfter = Invoke-HermesCron -CronArgs @("cron", "list") 2>&1 | Out-String
+        if ($listAfter -match "SAO Subconscious|SAO Session Sync|sao_subconscious") {
+            Write-Host "    Cron registered OK (daily + hourly)." -ForegroundColor Green
+            if ($listAfter -match "Gateway is not running|won't fire") {
+                Write-Host "    Note: keep Hermes running so hourly sync fires." -ForegroundColor Yellow
+            }
+        } elseif (($out1 + $out2) -match "Created job") {
+            Write-Host "    Cron created (verify: hermes cron list)." -ForegroundColor Green
         } else {
-            Write-Host "    Cron create may have failed (exit daily=$c1 sync=$c2). Check: hermes cron list" -ForegroundColor Yellow
+            Write-Host "    Cron create unclear. Check: hermes cron list" -ForegroundColor Yellow
+            Write-Host $out1 -ForegroundColor DarkGray
+            Write-Host $out2 -ForegroundColor DarkGray
         }
     } else {
         Write-Host "--> SAO subconscious cron already present." -ForegroundColor DarkGray
@@ -358,6 +367,36 @@ function Invoke-Hermes {
     return $LASTEXITCODE
 }
 
+function Test-HermesMessagingConfigured {
+    # True if Discord/Telegram/etc. looks configured (env or config)
+    $envHints = @(
+        "TELEGRAM_BOT_TOKEN", "TELEGRAM_TOKEN",
+        "DISCORD_BOT_TOKEN", "DISCORD_TOKEN",
+        "SLACK_BOT_TOKEN", "WHATSAPP_ENABLED"
+    )
+    foreach ($k in $envHints) {
+        $v = [Environment]::GetEnvironmentVariable($k, "Process")
+        if (-Not $v) { $v = [Environment]::GetEnvironmentVariable($k, "User") }
+        if (-Not $v) { $v = [Environment]::GetEnvironmentVariable($k, "Machine") }
+        if ($v) { return $true }
+    }
+    $paths = @(
+        (Join-Path $env:LOCALAPPDATA "hermes\.env"),
+        (Join-Path $env:USERPROFILE ".hermes\.env"),
+        (Join-Path $env:LOCALAPPDATA "hermes\config.yaml"),
+        (Join-Path $env:USERPROFILE ".hermes\config.yaml")
+    )
+    foreach ($p in $paths) {
+        if (-Not (Test-Path $p)) { continue }
+        try {
+            $t = Get-Content $p -Raw -ErrorAction SilentlyContinue
+            if ($t -match "(?i)(TELEGRAM_BOT_TOKEN|DISCORD_BOT_TOKEN|DISCORD_TOKEN)\s*=\s*\S+") { return $true }
+            if ($t -match "(?i)(telegram|discord|slack|whatsapp):\s*\n(?:[^\n]*\n)*?\s+enabled:\s*true") { return $true }
+        } catch { }
+    }
+    return $false
+}
+
 $hermesCmd = Resolve-HermesCommand
 if (-Not $hermesCmd) {
     Write-Host "    ERROR: Hermes CLI not found." -ForegroundColor Red
@@ -400,23 +439,67 @@ if ($needsSetup) {
     }
 }
 
-# Prefer gateway if messaging already configured; else open chat (creates state.db)
-Write-Host ""
-Write-Host "    Starting Hermes gateway (foreground)." -ForegroundColor Cyan
-Write-Host "    - Discord/Telegram/etc. if configured" -ForegroundColor DarkGray
-Write-Host "    - Ctrl+C to stop" -ForegroundColor DarkGray
-Write-Host "    - First successful run creates state.db under %LOCALAPPDATA%\hermes\" -ForegroundColor DarkGray
-Write-Host "    Alt (CLI chat only): `"$($hermesCmd.Path)`" chat" -ForegroundColor DarkGray
-Write-Host ""
+$hasMessaging = Test-HermesMessagingConfigured
 
-Push-Location $hermesCmd.WorkDir
-try {
-    # gateway run = foreground messaging bus (creates sessions -> state.db)
-    $code = Invoke-Hermes -Cmd $hermesCmd -HermesArgs @("gateway", "run")
-    if ($code -ne 0) {
-        Write-Host "    gateway run failed (exit $code). Falling back to: hermes chat" -ForegroundColor Yellow
-        Invoke-Hermes -Cmd $hermesCmd -HermesArgs @("chat")
+Write-Host ""
+Write-Host "==========================================" -ForegroundColor Cyan
+Write-Host "  What happens next" -ForegroundColor Cyan
+Write-Host "==========================================" -ForegroundColor Cyan
+
+if ($hasMessaging) {
+    Write-Host "  Messaging platform detected -> gateway (Discord/Telegram/etc.)" -ForegroundColor Green
+    Write-Host "  Ctrl+C to stop gateway." -ForegroundColor DarkGray
+    Write-Host ""
+    Push-Location $hermesCmd.WorkDir
+    try {
+        Invoke-Hermes -Cmd $hermesCmd -HermesArgs @("gateway", "run")
+    } finally {
+        Pop-Location
     }
-} finally {
-    Pop-Location
+} else {
+    Write-Host "  No Discord/Telegram configured yet." -ForegroundColor Yellow
+    Write-Host "  -> Opening Hermes CHAT (type messages here)." -ForegroundColor Green
+    Write-Host "  -> Starting gateway in BACKGROUND so hourly cron can fire." -ForegroundColor Green
+    Write-Host ""
+    Write-Host "  Tips:" -ForegroundColor DarkGray
+    Write-Host "    - Chat: type below, Enter to send" -ForegroundColor DarkGray
+    Write-Host "    - After chat: open another CMD -> sao log list" -ForegroundColor DarkGray
+    Write-Host "    - Later Discord/Telegram: hermes gateway setup" -ForegroundColor DarkGray
+    Write-Host "    - Cron needs a running Hermes process (gateway bg or install service)" -ForegroundColor DarkGray
+    Write-Host ""
+
+    # Background gateway so cron scheduler lives even without messaging platforms
+    try {
+        if ($hermesCmd.Kind -eq "exe") {
+            Start-Process -FilePath $hermesCmd.Path `
+                -ArgumentList @("gateway", "run") `
+                -WorkingDirectory $hermesCmd.WorkDir `
+                -WindowStyle Minimized
+        } else {
+            Start-Process -FilePath $hermesCmd.Path `
+                -ArgumentList @("-m", "hermes_cli.main", "gateway", "run") `
+                -WorkingDirectory $hermesCmd.WorkDir `
+                -WindowStyle Minimized
+        }
+        Write-Host "  Gateway started in minimized window (for cron)." -ForegroundColor DarkGray
+    } catch {
+        Write-Host "  Could not background gateway: $_" -ForegroundColor Yellow
+        Write-Host "  Hourly sync may not fire until gateway runs." -ForegroundColor Yellow
+    }
+
+    Write-Host ""
+    Write-Host "  === HERMES CHAT (you can talk now) ===" -ForegroundColor Cyan
+    Write-Host ""
+
+    Push-Location $hermesCmd.WorkDir
+    try {
+        Invoke-Hermes -Cmd $hermesCmd -HermesArgs @("chat")
+    } finally {
+        Pop-Location
+        Write-Host ""
+        Write-Host "  Chat ended. Sync memory now:" -ForegroundColor Cyan
+        Write-Host "    sao log" -ForegroundColor White
+        Write-Host "    sao log list" -ForegroundColor White
+        Write-Host "  Or wait for hourly cron (if gateway still running)." -ForegroundColor DarkGray
+    }
 }
