@@ -267,34 +267,109 @@ try {
     Write-Host "   Auto-cron register skipped." -ForegroundColor DarkGray
 }
 
-# 5. Start Hermes Core
-Write-Host "--> Launching Hermes Core (Port 20477)..." -ForegroundColor Yellow
+# 5. Start Hermes (real CLI: hermes / hermes_cli.main - NOT hermes_api)
+#    Entry points from hermes-agent pyproject:
+#      hermes = hermes_cli.main:main
+#      hermes-agent = run_agent:main
+#    Useful subcommands: setup | chat | gateway run | serve | status | doctor
+Write-Host "--> Launching Hermes..." -ForegroundColor Yellow
 Write-Host "    Graphify: managed by Hermes MCP (stdio), not a separate port." -ForegroundColor DarkGray
-$env:HERMES_PORT = "20477"
 
 $hermesWorkDir = Join-Path $baseDir "services\hermes"
-$hermesPyStart = Join-Path $hermesWorkDir ".venv\Scripts\python.exe"
+$hermesExe = Join-Path $hermesWorkDir ".venv\Scripts\hermes.exe"
+$hermesPy = Join-Path $hermesWorkDir ".venv\Scripts\python.exe"
 
-if (Test-Path $hermesPyStart) {
-    Write-Host "    Using local services\hermes venv" -ForegroundColor DarkGray
-    Start-Process -FilePath $hermesPyStart -ArgumentList "-m", "hermes_api" -WorkingDirectory $hermesWorkDir -NoNewWindow -Wait
-} else {
-    # Fallback: try hermes CLI on PATH / global install
-    $hermesCmd = Get-Command hermes -ErrorAction SilentlyContinue
-    if ($hermesCmd) {
-        Write-Host "    Using global 'hermes' CLI" -ForegroundColor DarkGray
-        Write-Host "    Tip: for gateway, run Hermes the way you already use on this machine." -ForegroundColor DarkGray
-        try {
-            & hermes 2>&1 | Out-Host
-        } catch {
-            Write-Host "    hermes CLI failed: $_" -ForegroundColor Yellow
-        }
-    } else {
-        Write-Host "    ERROR: services\hermes not ready and 'hermes' not on PATH." -ForegroundColor Red
-        Write-Host "    Fix:" -ForegroundColor Yellow
-        Write-Host "      1) Re-run: sao install" -ForegroundColor Yellow
-        Write-Host "      2) Or install Hermes Agent globally, then start it yourself" -ForegroundColor Yellow
-        Write-Host "      3) After Hermes runs once, state.db appears under %LOCALAPPDATA%\hermes\" -ForegroundColor Yellow
-        exit 1
+function Resolve-HermesCommand {
+    if (Test-Path $hermesExe) {
+        return @{ Kind = "exe"; Path = $hermesExe; WorkDir = $hermesWorkDir }
     }
+    if (Test-Path $hermesPy) {
+        return @{ Kind = "py"; Path = $hermesPy; WorkDir = $hermesWorkDir }
+    }
+    $globalExe = Join-Path $env:LOCALAPPDATA "hermes\hermes-agent\venv\Scripts\hermes.exe"
+    if (Test-Path $globalExe) {
+        return @{ Kind = "exe"; Path = $globalExe; WorkDir = (Split-Path (Split-Path $globalExe)) }
+    }
+    $onPath = Get-Command hermes -ErrorAction SilentlyContinue
+    if ($onPath) {
+        return @{ Kind = "exe"; Path = $onPath.Source; WorkDir = $baseDir }
+    }
+    return $null
+}
+
+function Invoke-Hermes {
+    param(
+        [hashtable]$Cmd,
+        [string[]]$HermesArgs
+    )
+    if ($Cmd.Kind -eq "exe") {
+        & $Cmd.Path @HermesArgs
+        return $LASTEXITCODE
+    }
+    # python -m hermes_cli.main ...
+    & $Cmd.Path -m hermes_cli.main @HermesArgs
+    return $LASTEXITCODE
+}
+
+$hermesCmd = Resolve-HermesCommand
+if (-Not $hermesCmd) {
+    Write-Host "    ERROR: Hermes CLI not found." -ForegroundColor Red
+    Write-Host "    Fix:" -ForegroundColor Yellow
+    Write-Host "      1) Re-run: sao install" -ForegroundColor Yellow
+    Write-Host "      2) Confirm: dir services\hermes\.venv\Scripts\hermes.exe" -ForegroundColor Yellow
+    exit 1
+}
+
+Write-Host "    Using: $($hermesCmd.Path)" -ForegroundColor DarkGray
+
+# First-run: if no model/config usable, guide setup
+$configProbe = Join-Path $env:LOCALAPPDATA "hermes\config.yaml"
+$needsSetup = $false
+if (-Not (Test-Path $configProbe)) {
+    $needsSetup = $true
+} else {
+    try {
+        $cfgText = Get-Content $configProbe -Raw -ErrorAction SilentlyContinue
+        # empty or only SAO-created stub
+        if (-Not $cfgText -or $cfgText.Length -lt 40) { $needsSetup = $true }
+    } catch { $needsSetup = $true }
+}
+
+if ($needsSetup) {
+    Write-Host ""
+    Write-Host "    Hermes needs first-time setup (model/provider)." -ForegroundColor Yellow
+    Write-Host "    Running: hermes setup" -ForegroundColor Cyan
+    Write-Host "    (interactive - pick model / API key)" -ForegroundColor DarkGray
+    Write-Host ""
+    Push-Location $hermesCmd.WorkDir
+    try {
+        $code = Invoke-Hermes -Cmd $hermesCmd -HermesArgs @("setup")
+    } finally {
+        Pop-Location
+    }
+    if ($code -ne 0) {
+        Write-Host "    setup exited with code $code" -ForegroundColor Yellow
+        Write-Host "    Manual: `"$($hermesCmd.Path)`" setup" -ForegroundColor Yellow
+    }
+}
+
+# Prefer gateway if messaging already configured; else open chat (creates state.db)
+Write-Host ""
+Write-Host "    Starting Hermes gateway (foreground)." -ForegroundColor Cyan
+Write-Host "    - Discord/Telegram/etc. if configured" -ForegroundColor DarkGray
+Write-Host "    - Ctrl+C to stop" -ForegroundColor DarkGray
+Write-Host "    - First successful run creates state.db under %LOCALAPPDATA%\hermes\" -ForegroundColor DarkGray
+Write-Host "    Alt (CLI chat only): `"$($hermesCmd.Path)`" chat" -ForegroundColor DarkGray
+Write-Host ""
+
+Push-Location $hermesCmd.WorkDir
+try {
+    # gateway run = foreground messaging bus (creates sessions -> state.db)
+    $code = Invoke-Hermes -Cmd $hermesCmd -HermesArgs @("gateway", "run")
+    if ($code -ne 0) {
+        Write-Host "    gateway run failed (exit $code). Falling back to: hermes chat" -ForegroundColor Yellow
+        Invoke-Hermes -Cmd $hermesCmd -HermesArgs @("chat")
+    }
+} finally {
+    Pop-Location
 }

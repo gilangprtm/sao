@@ -226,40 +226,59 @@ Opsi B — Ollama lokal:
 
 ---
 
-## STEP 6 — `sao start`
+## STEP 6 — `sao start` (butuh Hermes CLI, bukan `hermes_api`)
 
-```powershell
+**Penting:** Hermes resmi entry point = `hermes` (`hermes_cli.main`), **bukan** `python -m hermes_api` (modul itu tidak ada).
+
+```cmd
+sao install
 sao start
 ```
 
-Biarkan jalan. Catat log di terminal.
+Yang benar di log (v1.3.8+):
+```text
+Version: package start.ps1 (ASCII-safe)
+Using local services\hermes ... hermes.exe
+(optional first run) hermes setup
+Starting Hermes gateway (foreground)
+```
 
-| Cek | Harus terlihat di log (kurang lebih) |
-|-----|--------------------------------------|
-| Vault path | dicetak, path benar |
-| state.db | ketemu ATAU “not found yet” hanya sebelum Hermes pernah jalan |
-| Graph update | incremental / clean attempt (boleh warn, jangan crash total) |
-| Graphify MCP | “registered” / stdio di Hermes config |
-| Hermes launch | proses start (port **20477** jika pakai hermes_api SAO) |
+| Cek | Harus |
+|-----|--------|
+| Vault path | benar |
+| Graphify update | nodes/edges (sudah pernah lulus di device USER) |
+| Graphify MCP registered | ya |
+| **BUKAN** `No module named hermes_api` | kalau muncul = package < 1.3.8, re-install |
+| Hermes | `gateway run` atau fallback `chat` |
 
-Terminal kedua (jangan tutup `sao start`):
+### Manual fallback (jika `sao start` masih salah entry)
 
-```powershell
-sao status
+```cmd
+cd %APPDATA%\npm\node_modules\sira-agentic-orchestrator\services\hermes
+.venv\Scripts\hermes.exe setup
+.venv\Scripts\hermes.exe gateway run
+REM atau chat CLI:
+.venv\Scripts\hermes.exe chat
+```
+
+Setelah Hermes pernah jalan sekali:
+
+```cmd
+dir %LOCALAPPDATA%\hermes\state.db
 sao doctor
 ```
 
 | Cek | Ideal |
 |-----|--------|
-| Hermes Core 20477 | ACTIVE (jika mode API SAO) |
-| `state.db` di doctor | path valid setelah Hermes pernah create DB |
-| graphify_mcp_config | PASS atau WARN jelas (bukan silent) |
+| `state.db` | file ada |
+| doctor `state_db` | PASS |
+| Gateway | Discord/Telegram jika sudah `hermes gateway setup` |
 
-**PASS jika:** Hermes hidup (port ATAU proses Hermes gateway yang Tuan pakai) + tidak crash loop.  
-**FAIL jika:** start exit segera / error Python / port tidak pernah up → **paste full log start**.
+**PASS jika:** Hermes process hidup + state.db muncul.  
+**FAIL jika:** setup model gagal / gateway crash → paste full log.
 
-> Catatan: di laptop Sira, Hermes sering **gateway Discord**, bukan port 20477.  
-> Di zero-device, ikuti apa yang `sao start` launch. Tulis di report: **API 20477** atau **gateway lain**.
+> Port **20477** di docs lama = salah (asumsi API fiktif).  
+> Runtime nyata: **gateway** (messaging) atau **chat** (CLI) atau **serve** (desktop backend default ~9119).
 
 ---
 
