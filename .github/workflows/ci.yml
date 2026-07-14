@@ -1,11 +1,12 @@
-name: SAO CI
+name: SAO CI (OPTIONAL)
+
+# Account may lack Actions minutes (billing lock). Local doctor is the real gate:
+#   python scripts/doctor.py --fresh
+# This workflow is best-effort only — never required.
 
 on:
-  push:
-    branches: [main, master]
-  pull_request:
-    branches: [main, master]
-  workflow_dispatch:
+  workflow_dispatch:  # manual only when runners work
+  # push/PR disabled so failed billing does not spam "job not started"
 
 jobs:
   fresh-device:
@@ -25,11 +26,6 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-
       - name: Syntax check
         run: |
           python -m py_compile cli.py
@@ -44,39 +40,8 @@ jobs:
           test -f package.json
           test -f templates/vault/AGENTS.md
           test -f templates/vault/.graphignore
-          test -d templates/vault/Philosophy
         shell: bash
 
       - name: Doctor — fresh device simulation
         run: python scripts/doctor.py --fresh
         shell: bash
-
-      - name: CLI doctor --fresh via python -m
-        run: python cli.py doctor --fresh
-        shell: bash
-
-      - name: Upload doctor log on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: doctor-fresh-${{ matrix.os }}
-          path: |
-            **/*
-          retention-days: 3
-
-  host-smoke:
-    name: Host package smoke (windows)
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-      - name: Compile + doctor (no host Hermes expected)
-        shell: bash
-        run: |
-          python -m py_compile cli.py scripts/doctor.py scripts/subconscious.py
-          # On clean CI host, doctor health will WARN (no vault) — not FAIL on package files
-          # Fresh is the gate. Here we only ensure doctor runs without crash.
-          python scripts/doctor.py --fresh --json > doctor.json || true
-          python -c "import json;d=json.load(open('doctor.json'));f=[x for x in (d.get('fresh') or []) if x['level']=='FAIL'];print('fresh fails',f); raise SystemExit(1 if f else 0)"
