@@ -323,33 +323,22 @@ try {
     Write-Host '     hermes cron create "0 9 * * *" --name "SAO Subconscious Daily" --script sao_subconscious.py --no-agent --deliver local' -ForegroundColor DarkGray
 }
 
-# 5. Start Hermes (real CLI: hermes / hermes_cli.main - NOT hermes_api)
-#    Entry points from hermes-agent pyproject:
-#      hermes = hermes_cli.main:main
-#      hermes-agent = run_agent:main
-#    Useful subcommands: setup | chat | gateway run | serve | status | doctor
+# 5. Start Hermes (official entry: hermes)
+#    Prefer Desktop (Electron) -> then Gateway -> then CLI Chat
 Write-Host "--> Launching Hermes..." -ForegroundColor Yellow
 Write-Host "    Graphify: managed by Hermes MCP (stdio), not a separate port." -ForegroundColor DarkGray
 
-$hermesWorkDir = Join-Path $baseDir "services\hermes"
-$hermesExe = Join-Path $hermesWorkDir ".venv\Scripts\hermes.exe"
-$hermesPy = Join-Path $hermesWorkDir ".venv\Scripts\python.exe"
+# We use the global/official Hermes executable (since install.ps1 doesn't clone to services/ anymore)
+$globalExe = Join-Path $env:LOCALAPPDATA "hermes\hermes-agent\venv\Scripts\hermes.exe"
+$globalBin = Join-Path $env:LOCALAPPDATA "hermes\bin\hermes.exe"
+$dotLocal = Join-Path $env:USERPROFILE ".local\bin\hermes.exe"
 
 function Resolve-HermesCommand {
-    if (Test-Path $hermesExe) {
-        return @{ Kind = "exe"; Path = $hermesExe; WorkDir = $hermesWorkDir }
-    }
-    if (Test-Path $hermesPy) {
-        return @{ Kind = "py"; Path = $hermesPy; WorkDir = $hermesWorkDir }
-    }
-    $globalExe = Join-Path $env:LOCALAPPDATA "hermes\hermes-agent\venv\Scripts\hermes.exe"
-    if (Test-Path $globalExe) {
-        return @{ Kind = "exe"; Path = $globalExe; WorkDir = (Split-Path (Split-Path $globalExe)) }
-    }
+    if (Test-Path $globalExe) { return @{ Kind="exe"; Path=$globalExe; WorkDir=$baseDir } }
+    if (Test-Path $globalBin) { return @{ Kind="exe"; Path=$globalBin; WorkDir=$baseDir } }
+    if (Test-Path $dotLocal) { return @{ Kind="exe"; Path=$dotLocal; WorkDir=$baseDir } }
     $onPath = Get-Command hermes -ErrorAction SilentlyContinue
-    if ($onPath) {
-        return @{ Kind = "exe"; Path = $onPath.Source; WorkDir = $baseDir }
-    }
+    if ($onPath) { return @{ Kind="exe"; Path=$onPath.Source; WorkDir=$baseDir } }
     return $null
 }
 
@@ -362,7 +351,6 @@ function Invoke-Hermes {
         & $Cmd.Path @HermesArgs
         return $LASTEXITCODE
     }
-    # python -m hermes_cli.main ...
     & $Cmd.Path -m hermes_cli.main @HermesArgs
     return $LASTEXITCODE
 }
@@ -445,6 +433,36 @@ Write-Host ""
 Write-Host "==========================================" -ForegroundColor Cyan
 Write-Host "  What happens next" -ForegroundColor Cyan
 Write-Host "==========================================" -ForegroundColor Cyan
+
+# Desktop Check
+$desktopHasRun = $false
+try {
+    # Check if electron package installed or desktop app exists
+    # Just try to launch desktop; if it works, we don't need chat.
+    # We pass 'desktop' as a command so hermes_cli handles the electron spawn.
+    # Since desktop returns immediately (spawns detached app), we just check exit code.
+    Write-Host "  Trying Hermes Desktop..." -ForegroundColor DarkGray
+    Push-Location $hermesCmd.WorkDir
+    $deskExit = Invoke-Hermes -Cmd $hermesCmd -HermesArgs @("desktop")
+    if ($deskExit -eq 0) {
+        $desktopHasRun = $true
+        Write-Host "  -> Hermes Desktop GUI opened." -ForegroundColor Green
+        Write-Host "  -> Starting gateway in BACKGROUND so hourly cron can fire." -ForegroundColor Green
+        Write-Host "  Tips: talk in Desktop. Sync memory via Desktop or CLI later." -ForegroundColor DarkGray
+        Write-Host ""
+    }
+    Pop-Location
+} catch { }
+
+if ($desktopHasRun) {
+    # Still background the gateway for cron if no messaging
+    if (-Not $hasMessaging) {
+        try {
+            Start-Process -FilePath $hermesCmd.Path -ArgumentList @("gateway", "run") -WindowStyle Minimized
+        } catch { }
+    }
+    exit 0
+}
 
 if ($hasMessaging) {
     Write-Host "  Messaging platform detected -> gateway (Discord/Telegram/etc.)" -ForegroundColor Green

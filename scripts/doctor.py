@@ -318,8 +318,8 @@ def check_local_services(report: Report):
     else:
         report.add(
             "services_hermes_clone",
-            "WARN",
-            f"Missing {hermes}\nOK if Hermes is global; else: sao install",
+            "INFO",
+            f"Missing {hermes}\nOK: Hermes global (official install) or Desktop preferred",
         )
     if os.path.isdir(graphify):
         report.add("services_graphify_clone", "PASS", graphify)
