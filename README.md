@@ -81,8 +81,8 @@ Vault = Markdown folder. Obsidian is optional for AI, recommended for humans.
 sao start                  # everyday (fast incremental graph update)
 sao start --clean-graph    # after big deletes / stale graph nodes
 ```
-- **Graphify MCP**: http://localhost:20476
-- **Hermes**: http://localhost:20477
+- **Hermes**: brain + session store (`state.db`) + owns Graphify MCP (stdio)
+- Graph index updated on `sao start`; query via Hermes MCP tools (no fixed Graphify HTTP port)
 
 ---
 
@@ -140,9 +140,11 @@ Link an existing vault folder. Writes path to `~/.sao/config.json`.
 Sets coding delegate. Default `sira`. Probes PATH and lists detected CLIs.
 
 #### `sao start` / `sao start --clean-graph`
-1. Start Graphify index vault
-3. Start Graphify MCP (`20476`)
-4. Start Hermes (`20477`)
+1. Bind vault path + write Hermes pointers (`sao_vault.json`, env `SAO_VAULT_PATH` / `HERMES_STATE_DB`)
+2. Update Graphify index (incremental; use `--clean-graph` for full rebuild)
+3. Register Graphify as **Hermes stdio MCP** (Hermes owns lifecycle — no separate port 20476)
+4. Register subconscious cron if missing
+5. Start Hermes Core (`20477`)
 
 | Mode | When | Speed | Removes deleted-file nodes? |
 |------|------|-------|-----------------------------|
@@ -168,7 +170,7 @@ Sends them to Sira to compile into formatted Markdown notes under `vault/wiki/` 
 Services (ACTIVE/INACTIVE), vault path, worker config.
 
 #### `sao stop`
-Stop processes on ports `20476`–`20477`.
+Stop SAO-managed processes (Hermes on `20477`). Graphify has no separate SAO process when using stdio MCP.
 
 ---
 

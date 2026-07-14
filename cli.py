@@ -18,8 +18,9 @@ START_SCRIPT = os.path.join(BASE_DIR, "scripts", "start.ps1")
 CONFIG_PATH = os.path.expanduser("~/.sao/config.json")
 
 SERVICES = {
-    "Graphify MCP": 20476,
-    "Hermes Core": 20477
+    # Graphify is launched by Hermes as stdio MCP (no fixed HTTP port required).
+    # Optional legacy HTTP port kept only for status probe if user still runs it.
+    "Hermes Core": 20477,
 }
 
 # Known coding worker CLIs (optional — SAO never requires them)
@@ -106,13 +107,37 @@ def inject_vault_into_agents_md(vault_path):
 
 
 def write_vault_pointer(vault_path):
-    """Write vault path for Hermes/skills — never hardcode in repo templates."""
+    """Write vault path + hermes state.db for agents/skills — never hardcode."""
     if not vault_path:
         return
     posix = vault_path_posix(vault_path)
+    # Lazy import path for state db resolution (subconscious may not be on path)
+    state_db = None
+    try:
+        pkg = os.path.dirname(os.path.abspath(__file__))
+        if pkg not in sys.path:
+            sys.path.insert(0, pkg)
+        from scripts.subconscious import resolve_hermes_state_db
+        state_db = resolve_hermes_state_db()
+    except Exception:
+        # Fallback discovery without subconscious module
+        local = os.environ.get("LOCALAPPDATA")
+        for d in (
+            os.path.join(local, "hermes") if local else None,
+            os.path.expanduser("~/.hermes"),
+            os.path.expanduser("~/AppData/Local/hermes"),
+        ):
+            if not d:
+                continue
+            cand = os.path.join(d, "state.db")
+            if os.path.isfile(cand):
+                state_db = cand
+                break
+
     payload = {
         "vault_path": vault_path,
         "vault_path_posix": posix,
+        "hermes_state_db": state_db,
         "updated_at": __import__("datetime").datetime.now().isoformat(timespec="seconds"),
     }
     for d in hermes_config_dirs():
@@ -126,12 +151,17 @@ def write_vault_pointer(vault_path):
                 json.dump(payload, f, indent=2)
         except Exception:
             pass
-    # Also under ~/.sao for CLI tools
     try:
         sao_dir = os.path.dirname(CONFIG_PATH)
         os.makedirs(sao_dir, exist_ok=True)
         with open(os.path.join(sao_dir, "vault_path.txt"), "w", encoding="utf-8") as f:
             f.write(posix + "\n")
+        # Persist hermes_state_db into sao config for subconscious
+        cfg = load_config()
+        if state_db:
+            cfg["hermes_state_db"] = state_db
+        cfg["vault_path"] = vault_path
+        save_config(cfg)
     except Exception:
         pass
 
@@ -380,6 +410,18 @@ def cmd_start(clean_graph=False):
         print("Run 'sao setup vault' to fix.")
         sys.exit(1)
 
+    # Harden: export env for child PowerShell / Hermes / workers
+    os.environ["SAO_VAULT_PATH"] = vpath
+    try:
+        from scripts.subconscious import resolve_hermes_state_db
+        sdb = resolve_hermes_state_db()
+        if sdb:
+            os.environ["HERMES_STATE_DB"] = sdb
+            os.environ["SAO_HERMES_STATE_DB"] = sdb
+            print(f"   state.db: {sdb}")
+    except Exception:
+        pass
+
     wname, wcmd = resolve_worker(config)
     print("🚀 Starting SAO (Sira Agentic Orchestrator)...")
     print(f"   Vault: {vpath}")
@@ -388,6 +430,7 @@ def cmd_start(clean_graph=False):
         print("   Graph: CLEAN rebuild (wipe stale nodes + full reindex)")
     else:
         print("   Graph: incremental update (use --clean-graph after big deletes)")
+    print("   Graphify MCP: Hermes stdio (not fixed port 20476)")
 
     ps_args = [
         "powershell.exe",
@@ -483,7 +526,7 @@ def cmd_log_sessions(session_id=None, list_only=False):
 
     try:
         sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-        from scripts.subconscious import run_session_sync, HERMES_STATE_DB
+        from scripts.subconscious import run_session_sync, resolve_hermes_state_db
     except Exception as e:
         print(f"❌ Failed to import subconscious module: {e}")
         return
@@ -492,11 +535,12 @@ def cmd_log_sessions(session_id=None, list_only=False):
         import sqlite3
         from datetime import datetime
 
-        if not os.path.exists(HERMES_STATE_DB):
-            print(f"❌ Hermes state.db not found: {HERMES_STATE_DB}")
+        state_db = resolve_hermes_state_db()
+        if not state_db or not os.path.exists(state_db):
+            print(f"❌ Hermes state.db not found (set HERMES_STATE_DB or run sao start once)")
             return
         sessions_dir = os.path.join(vpath, "Sessions")
-        con = sqlite3.connect(HERMES_STATE_DB)
+        con = sqlite3.connect(state_db)
         con.row_factory = sqlite3.Row
         rows = con.execute(
             """
@@ -509,6 +553,7 @@ def cmd_log_sessions(session_id=None, list_only=False):
         ).fetchall()
         con.close()
         print(f"📋 Hermes sessions (latest 40) → vault: {vpath}")
+        print(f"   state.db: {state_db}")
         print(f"{'STATUS':8} {'MSGS':>5}  {'SOURCE':10}  ID  TITLE")
         for r in rows:
             note = os.path.join(sessions_dir, f"{r['id']}.md")

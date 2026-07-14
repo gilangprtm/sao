@@ -1,6 +1,6 @@
 ---
 name: sao-graphify-query
-description: "Query the user's vault knowledge graph via local Graphify MCP (port 20476)."
+description: "Query the user's vault knowledge graph via Graphify MCP registered in Hermes (stdio)."
 tags: ["graph", "vault", "mcp", "memory"]
 ---
 
@@ -13,10 +13,12 @@ Allow Sira (Hermes) to perform spatial reasoning over the **user's vault** witho
 1. Vault path is stored in `~/.sao/config.json` → key `vault_path` (set by `sao create vault` / `sao setup vault`).
 2. On every `sao start` / create / setup, SAO also writes:
    - `~/.hermes/sao_vault_path.txt` (and `%LOCALAPPDATA%/hermes/sao_vault_path.txt`)
-   - `~/.hermes/sao_vault.json`
+   - `~/.hermes/sao_vault.json` (includes `hermes_state_db`)
    - injects absolute path into vault `AGENTS.md` (`{{VAULT_PATH}}` → real path)
-3. `sao start` launches Graphify MCP on `localhost:20476` against **that** vault path (never a hardcoded user folder).
-4. Query tools hit the running MCP — do **not** invent absolute paths.
+3. **Graphify MCP is owned by Hermes (stdio)** — registered under `mcp_servers.graphify` in Hermes `config.yaml`.
+   - No separate SAO process on port 20476 required.
+   - Hermes restarts Graphify with the agent lifecycle.
+4. Env for workers/subconscious: `SAO_VAULT_PATH`, `HERMES_STATE_DB` / `SAO_HERMES_STATE_DB`.
 
 ## Resolve vault path (always dynamic)
 ```bash
@@ -26,6 +28,13 @@ cat ~/.sao/config.json
 cat ~/.hermes/sao_vault_path.txt
 # or
 python -c "import json,os; print(json.load(open(os.path.expanduser('~/.sao/config.json')))['vault_path'])"
+```
+
+## Resolve Hermes state.db (session source)
+```bash
+echo $HERMES_STATE_DB
+# or
+python -c "from scripts.subconscious import resolve_hermes_state_db; print(resolve_hermes_state_db())"
 ```
 
 ## Available Commands (via Hermes Tool / CLI)
@@ -46,22 +55,20 @@ graphify explain "SIS.md"
 ```
 
 ## Integration with Hermes
-`sao start` should keep MCP registration in sync with the vault path from config. Example shape (path is **dynamic**):
+`sao start` registers Graphify under Hermes **stdio MCP** (not a fixed HTTP port):
 
 ```yaml
-mcp:
-  servers:
-    graphify:
-      command: ["python", "-m", "graphify", "--mcp", "<VAULT_PATH_FROM_SAO_CONFIG>"]
+mcp_servers:
+  graphify:
+    command: <graphify-venv-python-or-python>
+    args: ["-m", "graphify", "--mcp", "<VAULT_PATH_FROM_SAO_CONFIG>"]
+    enabled: true
 ```
 
-Replace `<VAULT_PATH_FROM_SAO_CONFIG>` with the real `vault_path` from `~/.sao/config.json`.  
+Replace paths with values from `~/.sao/config.json` / `sao_vault.json`.  
 **Never** hardcode `C:\Users\<someone>\Documents\...`.
 
-Once registered, Sira can call:
-- `graphify_query`
-- `graphify_path`
-- `graphify_explain`
+Once registered, Sira can call Graphify tools via Hermes MCP.
 
 ## Best Practice
 1. Always start with `graphify query` to discover relevant nodes.

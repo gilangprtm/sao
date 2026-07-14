@@ -7,7 +7,9 @@ Berfokus menyatukan SAO sebagai mesin murni dengan **vault user** (path dari `~/
 ## ✅ Done (shipped)
 
 - Subconscious daily → `wiki/journal/` + `Sessions/` (no ledger DB)
-- Graphify MCP on start → vault path from config (not hardcoded user folder)
+- Graphify MCP on start → **stdio under Hermes** (`mcp_servers.graphify`), vault path from config
+- `state.db` resolved dynamically (env / config / profile scan) for subconscious
+- Env harden: `SAO_VAULT_PATH`, `HERMES_STATE_DB`
 - `.graphignore` + `sao ingest` for clean graph at scale
 - Gateway-agnostic (no mandatory 9Router)
 - HOM → SOM; CEO dashboard refs removed from default DNA

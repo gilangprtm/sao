@@ -25,7 +25,6 @@ from datetime import datetime
 from collections import defaultdict
 
 CONFIG_PATH = os.path.expanduser("~/.sao/config.json")
-HERMES_STATE_DB = os.path.expanduser("~/AppData/Local/hermes/state.db")
 
 # tokens too common to use for relatedness
 _STOP = {
@@ -44,6 +43,77 @@ def load_vault_path():
             return (json.load(f) or {}).get("vault_path")
     except Exception:
         return None
+
+
+def resolve_hermes_state_db():
+    """
+    Find Hermes state.db without hardcoding one profile path.
+    Order:
+      1. HERMES_STATE_DB env
+      2. SAO_HERMES_STATE_DB env
+      3. ~/.sao/config.json → hermes_state_db
+      4. ~/.hermes/sao_vault.json / %LOCALAPPDATA%/hermes/sao_vault.json → hermes_state_db
+      5. Common Hermes profile dirs that contain state.db
+    """
+    for key in ("HERMES_STATE_DB", "SAO_HERMES_STATE_DB"):
+        env = os.environ.get(key)
+        if env and os.path.isfile(env):
+            return env
+
+    # config / pointer files
+    candidates_meta = [CONFIG_PATH]
+    home = os.path.expanduser("~")
+    candidates_meta.append(os.path.join(home, ".hermes", "sao_vault.json"))
+    local = os.environ.get("LOCALAPPDATA")
+    if local:
+        candidates_meta.append(os.path.join(local, "hermes", "sao_vault.json"))
+    for meta in candidates_meta:
+        if not os.path.isfile(meta):
+            continue
+        try:
+            with open(meta, "r", encoding="utf-8") as f:
+                data = json.load(f) or {}
+            p = data.get("hermes_state_db") or data.get("state_db")
+            if p and os.path.isfile(p):
+                return p
+        except Exception:
+            pass
+
+    # Well-known locations (Windows + Unix Hermes layouts)
+    search_dirs = []
+    if local:
+        search_dirs.append(os.path.join(local, "hermes"))
+    search_dirs.append(os.path.join(home, ".hermes"))
+    search_dirs.append(os.path.join(home, "AppData", "Local", "hermes"))
+    # Profile subdirs: ~/.hermes/profiles/<name>/
+    profiles = os.path.join(home, ".hermes", "profiles")
+    if os.path.isdir(profiles):
+        for name in os.listdir(profiles):
+            search_dirs.append(os.path.join(profiles, name))
+    if local:
+        profiles2 = os.path.join(local, "hermes", "profiles")
+        if os.path.isdir(profiles2):
+            for name in os.listdir(profiles2):
+                search_dirs.append(os.path.join(profiles2, name))
+
+    found = []
+    for d in search_dirs:
+        db = os.path.join(d, "state.db")
+        if os.path.isfile(db):
+            try:
+                found.append((os.path.getmtime(db), db))
+            except OSError:
+                found.append((0, db))
+    if found:
+        found.sort(key=lambda x: x[0], reverse=True)
+        return found[0][1]
+    return None
+
+
+# Resolved at import for backward-compat imports; re-resolve inside jobs too.
+HERMES_STATE_DB = resolve_hermes_state_db() or os.path.expanduser(
+    "~/AppData/Local/hermes/state.db"
+)
 
 
 def _safe_preview(text, limit=400):
@@ -270,16 +340,20 @@ def run_session_sync(vault_path, filter_session=None, force=False):
     - Growing sessions (message_count naik) → rewrite note
     - Auto-link related sessions (NO user input / session IDs required)
     """
-    if not os.path.exists(HERMES_STATE_DB):
-        print(f"⚠️ Hermes state.db not found at {HERMES_STATE_DB}. Session sync skipped.")
+    global HERMES_STATE_DB
+    state_db = resolve_hermes_state_db()
+    if state_db:
+        HERMES_STATE_DB = state_db
+    if not state_db or not os.path.exists(state_db):
+        print(f"⚠️ Hermes state.db not found (checked env, ~/.sao, ~/.hermes, LOCALAPPDATA). Session sync skipped.")
         return 0
 
     sessions_dir = os.path.join(vault_path, "Sessions")
     os.makedirs(sessions_dir, exist_ok=True)
 
-    print("🔄 Syncing Hermes sessions → vault/Sessions/ (auto-link related)...")
+    print(f"🔄 Syncing Hermes sessions → vault/Sessions/ (db: {state_db})...")
 
-    con = sqlite3.connect(HERMES_STATE_DB)
+    con = sqlite3.connect(state_db)
     con.row_factory = sqlite3.Row
 
     # Always load a broader catalog for relatedness (even when filtering one id)

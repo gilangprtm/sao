@@ -14,8 +14,8 @@
 
 | Service | Bahasa | Port | Peran |
 |---------|--------|------|-------|
-| **Hermes** | Python | 20477 | Brain. Commander. Cron. Orchestrator utama |
-| **Graphify** | Python | 20476 | Knowledge graph MCP — **Katalog & Index Vault** |
+| **Hermes** | Python | 20477 | Brain. Commander. Cron. Owns Graphify MCP (stdio). Session `state.db`. |
+| **Graphify** | Python | (stdio via Hermes) | Knowledge graph index + MCP tools — **bukan** service HTTP terpisah |
 | **Worker** *(opsional)* | *CLI* | - | Executor coding (misal: Claude Code, OpenCode). Jika kosong, Hermes merangkap sebagai worker (`sira`). |
 
 ---
