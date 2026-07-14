@@ -529,22 +529,35 @@ def run_health_check():
     print(f"[{datetime.now()}] SAO subconscious health OK.")
 
 
+def run_graphify_update(vpath):
+    print(f"[{datetime.now()}] Updating Graphify index...")
+    try:
+        import subprocess
+        # use sys.executable since graphify is likely installed in the same python environment
+        # as Hermes (via uv pip) when running from cron
+        subprocess.run([sys.executable, "-m", "graphify", "update", vpath], check=True)
+        print("✅ Graphify update complete.")
+    except Exception as e:
+        print(f"⚠️ Graphify update failed: {e}")
+
 if __name__ == "__main__":
     # Support: python subconscious.py daily
-    #          python sao_subconscious.py   (cron no_agent may pass no args — default daily)
+    #          python sao_subconscious.py   (cron no_agent may pass no args — default sync)
     vpath = load_vault_path()
     if not vpath or not os.path.exists(vpath):
         print("❌ Vault path not set or invalid. Run 'sao setup vault' first.")
         sys.exit(1)
 
-    cmd = sys.argv[1] if len(sys.argv) > 1 else "daily"
+    cmd = sys.argv[1] if len(sys.argv) > 1 else "sync"
 
     if cmd == "daily":
         run_session_sync(vpath)
+        run_graphify_update(vpath)
         run_daily_digest(vpath)
     elif cmd == "sync":
         filt = sys.argv[2] if len(sys.argv) > 2 else None
         run_session_sync(vpath, filter_session=filt, force=bool(filt))
+        run_graphify_update(vpath)
     elif cmd == "health":
         run_health_check()
     else:
