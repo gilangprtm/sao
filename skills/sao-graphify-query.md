@@ -11,13 +11,19 @@ Allow Sira (Hermes) to perform spatial reasoning over the **user's vault** witho
 
 ## How It Works
 1. Vault path is stored in `~/.sao/config.json` → key `vault_path` (set by `sao create vault` / `sao setup vault`).
-2. `sao start` launches Graphify MCP on `localhost:20476` against **that** vault path (never a hardcoded user folder).
-3. Query tools hit the running MCP — do **not** invent absolute paths.
+2. On every `sao start` / create / setup, SAO also writes:
+   - `~/.hermes/sao_vault_path.txt` (and `%LOCALAPPDATA%/hermes/sao_vault_path.txt`)
+   - `~/.hermes/sao_vault.json`
+   - injects absolute path into vault `AGENTS.md` (`{{VAULT_PATH}}` → real path)
+3. `sao start` launches Graphify MCP on `localhost:20476` against **that** vault path (never a hardcoded user folder).
+4. Query tools hit the running MCP — do **not** invent absolute paths.
 
-## Resolve vault path (if needed)
+## Resolve vault path (always dynamic)
 ```bash
-# Windows / Git Bash
+# Preferred
 cat ~/.sao/config.json
+# Pointer for agents
+cat ~/.hermes/sao_vault_path.txt
 # or
 python -c "import json,os; print(json.load(open(os.path.expanduser('~/.sao/config.json')))['vault_path'])"
 ```

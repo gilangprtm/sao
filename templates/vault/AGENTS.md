@@ -23,8 +23,13 @@ Kamu adalah **Sira**, AI Engineer pribadi user. Kamu beroperasi di bawah:
 
 ## Vault Ini
 
-Ini second brain. `wiki/` = compiled knowledge. `Philosophy/` = DNA (SIS + SOM).
-`Sessions/` = ringkasan semua obrolan Hermes (Discord/Telegram/CLI/TUI).
+Ini second brain. **Vault path (dinamis):** `{{VAULT_PATH}}`
+- `wiki/` = compiled knowledge
+- `Philosophy/` = DNA (SIS + SOM)
+- `Sessions/` = ringkasan semua obrolan Hermes (Discord/Telegram/CLI/TUI)
+
+> Path di atas diisi otomatis oleh `sao create vault` / `sao setup vault` / `sao start`.
+> Jangan hardcode path user lain. Sumber kebenaran: `~/.sao/config.json` → `vault_path`.
 
 ## Memory Continuity (otomatis — user tidak perlu tahu session ID)
 

@@ -51,6 +51,102 @@ def default_config():
     }
 
 
+def hermes_config_dirs():
+    """Possible Hermes config locations (Windows + portable)."""
+    dirs = []
+    home = os.path.expanduser("~")
+    dirs.append(os.path.join(home, ".hermes"))
+    local = os.environ.get("LOCALAPPDATA")
+    if local:
+        dirs.append(os.path.join(local, "hermes"))
+    return dirs
+
+
+def vault_path_posix(vault_path):
+    return (vault_path or "").replace("\\", "/")
+
+
+def inject_vault_into_agents_md(vault_path):
+    """Replace {{VAULT_PATH}} or rewrite Vault section with absolute path."""
+    agents = os.path.join(vault_path, "AGENTS.md")
+    if not os.path.isfile(agents):
+        return False
+    try:
+        with open(agents, "r", encoding="utf-8") as f:
+            text = f.read()
+        posix = vault_path_posix(vault_path)
+        if "{{VAULT_PATH}}" in text:
+            text = text.replace("{{VAULT_PATH}}", posix)
+        else:
+            # Idempotent: ensure absolute path appears once under Vault section
+            marker = "**Vault path (dinamis):**"
+            if marker in text:
+                import re
+                text = re.sub(
+                    r"\*\*Vault path \(dinamis\):\*\*\s*`[^`]*`",
+                    f"**Vault path (dinamis):** `{posix}`",
+                    text,
+                    count=1,
+                )
+            else:
+                # Insert after first "## Vault Ini" block header
+                needle = "## Vault Ini"
+                if needle in text:
+                    text = text.replace(
+                        needle,
+                        f"{needle}\n\n**Vault path (dinamis):** `{posix}`\n",
+                        1,
+                    )
+        with open(agents, "w", encoding="utf-8") as f:
+            f.write(text)
+        return True
+    except Exception as e:
+        print(f"⚠️ Could not inject vault path into AGENTS.md: {e}")
+        return False
+
+
+def write_vault_pointer(vault_path):
+    """Write vault path for Hermes/skills — never hardcode in repo templates."""
+    if not vault_path:
+        return
+    posix = vault_path_posix(vault_path)
+    payload = {
+        "vault_path": vault_path,
+        "vault_path_posix": posix,
+        "updated_at": __import__("datetime").datetime.now().isoformat(timespec="seconds"),
+    }
+    for d in hermes_config_dirs():
+        try:
+            os.makedirs(d, exist_ok=True)
+            txt = os.path.join(d, "sao_vault_path.txt")
+            with open(txt, "w", encoding="utf-8") as f:
+                f.write(posix + "\n")
+            js = os.path.join(d, "sao_vault.json")
+            with open(js, "w", encoding="utf-8") as f:
+                json.dump(payload, f, indent=2)
+        except Exception:
+            pass
+    # Also under ~/.sao for CLI tools
+    try:
+        sao_dir = os.path.dirname(CONFIG_PATH)
+        os.makedirs(sao_dir, exist_ok=True)
+        with open(os.path.join(sao_dir, "vault_path.txt"), "w", encoding="utf-8") as f:
+            f.write(posix + "\n")
+    except Exception:
+        pass
+
+
+def bind_vault(vault_path, inject_agents=True):
+    """Single entry: save config + pointer files + AGENTS.md injection."""
+    config = load_config()
+    config["vault_path"] = vault_path
+    save_config(config)
+    write_vault_pointer(vault_path)
+    if inject_agents:
+        inject_vault_into_agents_md(vault_path)
+    return config
+
+
 def load_config():
     cfg = default_config()
     if not os.path.exists(CONFIG_PATH):
@@ -164,14 +260,13 @@ def cmd_create_vault():
                 if not os.path.exists(gitkeep):
                     open(gitkeep, "a", encoding="utf-8").close()
 
-        config = load_config()
-        config["vault_path"] = vault_path
-        save_config(config)
+        config = bind_vault(vault_path, inject_agents=True)
 
         print(f"\n✅ Vault '{name}' created successfully at:\n   {vault_path}")
         print("✅ Structure: AGENTS.md, SCHEMA.md, Philosophy/SIS+SOM, wiki/, raw/, ingested/, graphify-out/, _templates/, Sessions/")
         print("✅ Full SIS + SOM content included (not placeholders).")
-        print("✅ Path saved to config. Next: open folder in Obsidian (optional), then 'sao start'.")
+        print("✅ Vault path injected into AGENTS.md + Hermes pointer files.")
+        print("✅ Path saved to ~/.sao/config.json. Next: open folder in Obsidian (optional), then 'sao start'.")
 
     except Exception as e:
         print(f"❌ Failed to create vault: {e}")
@@ -201,9 +296,9 @@ def cmd_setup_vault():
         path = path.strip("\"'")
 
         if os.path.isdir(path):
-            config["vault_path"] = path
-            save_config(config)
+            bind_vault(path, inject_agents=True)
             print(f"\n✅ Vault path successfully saved: {path}")
+            print("✅ AGENTS.md updated + Hermes pointer (sao_vault_path.txt) written.")
             break
         else:
             print("\n❌ Error: That directory does not exist. Please enter a valid path.")
@@ -275,8 +370,19 @@ def cmd_start(clean_graph=False):
         print("Please run 'sao create vault' or 'sao setup vault' first.")
         sys.exit(1)
 
+    # Re-bind every start: pointer files + AGENTS path stay in sync if user moved vault
+    vpath = config["vault_path"]
+    if os.path.isdir(vpath):
+        write_vault_pointer(vpath)
+        inject_vault_into_agents_md(vpath)
+    else:
+        print(f"❌ Vault path invalid: {vpath}")
+        print("Run 'sao setup vault' to fix.")
+        sys.exit(1)
+
     wname, wcmd = resolve_worker(config)
     print("🚀 Starting SAO (Sira Agentic Orchestrator)...")
+    print(f"   Vault: {vpath}")
     print(f"   Worker: {wname}" + (f" ({wcmd})" if wcmd else " [built-in]"))
     if clean_graph:
         print("   Graph: CLEAN rebuild (wipe stale nodes + full reindex)")
