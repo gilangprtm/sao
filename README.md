@@ -182,8 +182,13 @@ Health check: package files, vault structure, AGENTS inject, Hermes pointers, `s
 | `--strict` | WARN counts as failure (exit 1) |
 | `--json` | Machine-readable JSON (scripts/CI optional) |
 
-**Do not depend on GitHub Actions** (billing/account may block runners).  
-**Monitor on your machine (source of truth):**
+## 🧪 Test di device kosong (wajib jika claim ready)
+
+Sira **tidak bisa pantau** laptop lain. Ikuti checklist + kirim report:
+
+📄 **[docs/ZERO-DEVICE-CHECKLIST.md](docs/ZERO-DEVICE-CHECKLIST.md)**
+
+Gate lokal (mesin dev): `sao doctor --fresh` — **bukan** GitHub Actions.
 
 ```powershell
 # After any SAO change / before claim "ready"
