@@ -247,14 +247,12 @@ def _compile_session_md(sess, messages, related=None):
 
     signals = _extract_session_signals(sess, messages)
     topics = signals["topics"]
-    first_user = signals["first_user"]
-    last_assistant = signals["last_assistant"]
     topics_block = "\n".join(f"- {t}" for t in topics) if topics else "- (belum diekstrak)"
 
     related = related or []
     parent = signals.get("parent_session_id")
 
-    # frontmatter related ids (machine-readable)
+    # frontmatter related ids
     related_ids = [r[0] for r in related]
     related_yaml = json.dumps(related_ids, ensure_ascii=False)
 
@@ -269,6 +267,20 @@ def _compile_session_md(sess, messages, related=None):
         related_block = "- (belum terdeteksi session terkait)"
 
     continues_from = parent or (related_ids[0] if related_ids else "")
+
+    # Build FULL transcript chunked for safety (limit to last ~20000 chars if huge, but generally full)
+    transcript = []
+    for m in messages:
+        # m is a sqlite3.Row or dict
+        role = m["role"].upper() if "role" in m.keys() else "UNKNOWN"
+        content = m["content"] or ""
+        if role == "TOOL":
+            content = content[:200] + "... [tool output truncated for vault]"
+        transcript.append(f"**[{role}]**\n{content.strip()}\n")
+    
+    full_transcript = "\n---\n".join(transcript)
+    if len(full_transcript) > 25000:
+        full_transcript = full_transcript[-25000:] + "\n\n...[earlier messages truncated in this chunk]..."
 
     return f"""---
 title: "{title.replace('"', "'")}"
@@ -300,17 +312,18 @@ tags: [domain/session, type/session]
 ## Topik (user prompts ringkas)
 {topics_block}
 
-## Pertama Ditanyakan
-> {_safe_preview(first_user, 500)}
-
-## Resolusi / Status Terakhir (Sira)
-{_safe_preview(last_assistant, 800)}
-
 ## Hubungan Wiki / Tindak Lanjut
 - *Tambah `[[wikilink]]` ke halaman wiki terkait jika topik ini perlu dilanjutkan.*
 - *Sira: baca related sessions di atas + Graphify — lanjut natural, jangan redirect user ke session lama.*
-"""
 
+## Full Transcript (Arsip)
+<details>
+<summary>Klik untuk buka full transcript chat (Berguna untuk pencarian Graphify / memori penuh)</summary>
+
+{full_transcript}
+
+</details>
+"""
 
 def _build_catalog(con, sessions):
     """Preload tokens for relatedness across all sessions being synced."""
