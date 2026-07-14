@@ -258,10 +258,10 @@ try {
         Copy-Item -Path $saoScript -Destination $targetScript -Force -ErrorAction SilentlyContinue
     }
 
-    $existingCron = & $hermesPython -m hermes_cli cron list 2>$null | Select-String "sao_subconscious"
+    $existingCron = & $hermesPython -m hermes_cli.main cron list 2>$null | Select-String "sao_subconscious"
     if (-Not $existingCron) {
         Write-Host "--> Registering Daily Subconscious Cron in Hermes..." -ForegroundColor Yellow
-        & $hermesPython -m hermes_cli cron create --name "SAO Subconscious Daily" --schedule "0 9 * * *" --script "sao_subconscious.py" --no-agent --deliver local 2>$null | Out-Null
+        & $hermesPython -m hermes_cli.main cron create --name "SAO Subconscious Daily" --schedule "0 9 * * *" --script "sao_subconscious.py" --no-agent --deliver local 2>$null | Out-Null
     }
 } catch {
     Write-Host "   Auto-cron register skipped." -ForegroundColor DarkGray
