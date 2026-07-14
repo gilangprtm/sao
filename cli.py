@@ -483,8 +483,8 @@ def cmd_status():
     print("💡 Full health: sao doctor   ·   Smoke: sao doctor --smoke")
 
 
-def cmd_doctor(smoke=False, strict=False, as_json=False):
-    """Health check + optional isolated smoke test."""
+def cmd_doctor(smoke=False, strict=False, as_json=False, fresh=False):
+    """Health check + optional smoke / fresh-device simulation."""
     try:
         from scripts.doctor import main as doctor_main
     except Exception as e:
@@ -497,6 +497,8 @@ def cmd_doctor(smoke=False, strict=False, as_json=False):
         argv.append("--strict")
     if as_json:
         argv.append("--json")
+    if fresh:
+        argv.append("--fresh")
     code = doctor_main(argv)
     sys.exit(code)
 
@@ -629,6 +631,11 @@ def main():
         action="store_true",
         help="JSON report for CI",
     )
+    doctor_parser.add_argument(
+        "--fresh",
+        action="store_true",
+        help="Simulate empty device (fake HOME) + vault create + mock state.db + session sync",
+    )
 
     setup_parser = subparsers.add_parser("setup", help="Setup SAO configurations")
     setup_parser.add_argument("module", choices=["vault"], help="Module to setup (e.g., vault)")
@@ -659,6 +666,7 @@ def main():
             smoke=getattr(args, "smoke", False),
             strict=getattr(args, "strict", False),
             as_json=getattr(args, "json", False),
+            fresh=getattr(args, "fresh", False),
         )
     elif args.command == "setup":
         if args.module == "vault":

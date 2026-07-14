@@ -360,17 +360,249 @@ def check_scripts(report: Report):
 
 def check_env(report: Report):
     lines = []
-    for k in ("SAO_VAULT_PATH", "HERMES_STATE_DB", "SAO_HERMES_STATE_DB"):
+    for k in ("SAO_VAULT_PATH", "HERMES_STATE_DB", "SAO_HERMES_STATE_DB", "HOME", "USERPROFILE", "LOCALAPPDATA"):
         v = os.environ.get(k)
         lines.append(f"{k}={v or '(unset)'}")
-    # unset is normal outside sao start child
     report.add("env", "INFO", "\n".join(lines) + "\n(set automatically during sao start)")
 
 
-def run_health() -> Report:
+def _patch_module_paths(home: str):
+    """After faking HOME, force SAO modules to use the fresh config path."""
+    cfg = os.path.join(home, ".sao", "config.json")
+    try:
+        import cli as cli_mod
+        cli_mod.CONFIG_PATH = cfg
+    except Exception:
+        pass
+    try:
+        import scripts.subconscious as sub
+        sub.CONFIG_PATH = cfg
+        # force re-resolve next call
+        sub.HERMES_STATE_DB = sub.resolve_hermes_state_db() or ""
+    except Exception:
+        pass
+
+
+def enter_fresh_home():
+    """
+    Isolate from the developer's real Hermes/SAO state.
+    Returns (tmp_root, home, localappdata, old_env_snapshot).
+    """
+    tmp = tempfile.mkdtemp(prefix="sao-fresh-")
+    home = os.path.join(tmp, "home")
+    local = os.path.join(home, "AppData", "Local")
+    roaming = os.path.join(home, "AppData", "Roaming")
+    docs = os.path.join(home, "Documents")
+    for d in (home, local, roaming, docs, os.path.join(home, ".sao"), os.path.join(local, "hermes")):
+        os.makedirs(d, exist_ok=True)
+
+    keys = (
+        "HOME", "USERPROFILE", "HOMEDRIVE", "HOMEPATH",
+        "LOCALAPPDATA", "APPDATA",
+        "HERMES_STATE_DB", "SAO_HERMES_STATE_DB", "SAO_VAULT_PATH",
+    )
+    old = {k: os.environ.get(k) for k in keys}
+
+    os.environ["HOME"] = home
+    os.environ["USERPROFILE"] = home
+    # Windows-style extras
+    if os.name == "nt":
+        # keep drive letter if present
+        drive, path = os.path.splitdrive(home)
+        if drive:
+            os.environ["HOMEDRIVE"] = drive
+            os.environ["HOMEPATH"] = path or "\\"
+    os.environ["LOCALAPPDATA"] = local
+    os.environ["APPDATA"] = roaming
+    for k in ("HERMES_STATE_DB", "SAO_HERMES_STATE_DB", "SAO_VAULT_PATH"):
+        os.environ.pop(k, None)
+
+    _patch_module_paths(home)
+    return tmp, home, local, old
+
+
+def leave_fresh_home(tmp: str, old: dict):
+    for k, v in old.items():
+        if v is None:
+            os.environ.pop(k, None)
+        else:
+            os.environ[k] = v
+    # restore real module paths
+    real_home = os.path.expanduser("~")
+    _patch_module_paths(real_home)
+    try:
+        shutil.rmtree(tmp, ignore_errors=True)
+    except Exception:
+        pass
+
+
+def _create_mini_state_db(path: str) -> None:
+    """Minimal Hermes-compatible state.db for session sync tests."""
+    import time
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    con = sqlite3.connect(path)
+    con.executescript(
+        """
+        CREATE TABLE sessions (
+            id TEXT PRIMARY KEY,
+            source TEXT NOT NULL,
+            user_id TEXT,
+            model TEXT,
+            parent_session_id TEXT,
+            started_at REAL NOT NULL,
+            message_count INTEGER DEFAULT 0,
+            cwd TEXT,
+            title TEXT
+        );
+        CREATE TABLE messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id TEXT NOT NULL,
+            role TEXT NOT NULL,
+            content TEXT,
+            timestamp REAL NOT NULL
+        );
+        """
+    )
+    now = time.time()
+    con.execute(
+        "INSERT INTO sessions (id, source, started_at, message_count, title, cwd) VALUES (?,?,?,?,?,?)",
+        ("smoke-sess-1", "cli", now, 3, "Fresh install smoke topic SAO vault", "/tmp"),
+    )
+    con.execute(
+        "INSERT INTO sessions (id, source, started_at, message_count, title, cwd) VALUES (?,?,?,?,?,?)",
+        ("smoke-sess-2", "cli", now - 100, 2, "Related graphify memory", "/tmp"),
+    )
+    msgs = [
+        ("smoke-sess-1", "user", "Bagaimana cara setup SAO vault dinamis?", now - 50),
+        ("smoke-sess-1", "assistant", "Pakai sao create vault lalu sao start.", now - 40),
+        ("smoke-sess-1", "user", "Lanjut graphify MCP.", now - 30),
+        ("smoke-sess-2", "user", "Query graphify path AGENTS ke SOM", now - 90),
+        ("smoke-sess-2", "assistant", "graphify path AGENTS.md SOM.md", now - 80),
+    ]
+    for sid, role, content, ts in msgs:
+        con.execute(
+            "INSERT INTO messages (session_id, role, content, timestamp) VALUES (?,?,?,?)",
+            (sid, role, content, ts),
+        )
+    con.commit()
+    con.close()
+
+
+def run_fresh_install_sim() -> Report:
+    """
+    Simulate empty device:
+      empty HOME → create vault from template → mock state.db → session sync → bind pointers
+    Never touches the developer's real ~/.sao or Hermes data (env sandbox).
+    """
     report = Report()
+    print("\n🧊 Fresh-device simulation (isolated HOME)...\n")
+    tmp, home, local, old = enter_fresh_home()
+    try:
+        # 1) Empty world expectations
+        cfg = os.path.join(home, ".sao", "config.json")
+        if os.path.isfile(cfg):
+            report.add("fresh_empty_config", "FAIL", "config should not exist yet")
+        else:
+            report.add("fresh_empty_config", "PASS", "no ~/.sao/config.json (clean)")
+
+        db0 = None
+        try:
+            from scripts.subconscious import resolve_hermes_state_db
+            db0 = resolve_hermes_state_db()
+        except Exception as e:
+            report.add("fresh_empty_state", "WARN", str(e))
+        if db0:
+            report.add("fresh_empty_state", "FAIL", f"state.db leaked from host: {db0}")
+        else:
+            report.add("fresh_empty_state", "PASS", "no state.db visible (clean)")
+
+        # 2) Create vault from template (non-interactive)
+        vault = os.path.join(home, "Documents", "Fresh-Vault")
+        tpl = os.path.join(PKG_ROOT, "templates", "vault")
+        if not os.path.isdir(tpl):
+            report.add("fresh_template", "FAIL", f"missing templates/vault at {tpl}")
+            return report
+        shutil.copytree(tpl, vault)
+        for d in ("Sessions", "wiki/journal", "raw", "ingested", "Philosophy", "graphify-out", "_templates"):
+            os.makedirs(os.path.join(vault, d), exist_ok=True)
+        report.add("fresh_vault_create", "PASS", vault)
+
+        from cli import bind_vault, inject_vault_into_agents_md, load_config
+        bind_vault(vault, inject_agents=True)
+        cfg_data = load_config()
+        if cfg_data.get("vault_path") == vault or os.path.normpath(cfg_data.get("vault_path", "")) == os.path.normpath(vault):
+            report.add("fresh_bind_config", "PASS", str(cfg_data.get("vault_path")))
+        else:
+            report.add("fresh_bind_config", "FAIL", f"config vault_path={cfg_data.get('vault_path')}")
+
+        agents = open(os.path.join(vault, "AGENTS.md"), encoding="utf-8").read()
+        if "{{VAULT_PATH}}" in agents:
+            report.add("fresh_agents_inject", "FAIL", "placeholder not replaced")
+        else:
+            report.add("fresh_agents_inject", "PASS", "AGENTS.md injected")
+
+        # 3) Mock Hermes state.db in fresh LOCALAPPDATA
+        state_db = os.path.join(local, "hermes", "state.db")
+        _create_mini_state_db(state_db)
+        os.environ["HERMES_STATE_DB"] = state_db
+        os.environ["SAO_HERMES_STATE_DB"] = state_db
+        _patch_module_paths(home)
+        from scripts.subconscious import resolve_hermes_state_db, run_session_sync
+        resolved = resolve_hermes_state_db()
+        if resolved and os.path.normpath(resolved) == os.path.normpath(state_db):
+            report.add("fresh_state_resolve", "PASS", resolved)
+        else:
+            report.add("fresh_state_resolve", "FAIL", f"resolved={resolved} expected={state_db}")
+
+        # re-bind to store hermes_state_db in config
+        bind_vault(vault, inject_agents=True)
+
+        n = run_session_sync(vault)
+        sess_dir = os.path.join(vault, "Sessions")
+        notes = [f for f in os.listdir(sess_dir) if f.endswith(".md")] if os.path.isdir(sess_dir) else []
+        if n >= 1 and len(notes) >= 1:
+            report.add("fresh_session_sync", "PASS", f"synced={n} notes={len(notes)} files={notes[:5]}")
+        else:
+            report.add("fresh_session_sync", "FAIL", f"synced={n} notes={notes}")
+
+        # 4) Package scripts still present
+        for rel in ("scripts/doctor.py", "scripts/subconscious.py", "bin/sao.js"):
+            p = os.path.join(PKG_ROOT, rel)
+            if os.path.isfile(p):
+                report.add(f"fresh_pkg:{rel}", "PASS", "ok")
+            else:
+                report.add(f"fresh_pkg:{rel}", "FAIL", "missing")
+
+        # 5) Prerequisites probe (informational for real empty device)
+        for cmd in ("git", "node", "npm", "python", "uv"):
+            found = shutil.which(cmd)
+            report.add(
+                f"prereq:{cmd}",
+                "PASS" if found else "WARN",
+                found or "not on PATH (needed for sao install on real device)",
+            )
+
+    except Exception as e:
+        report.add("fresh_fatal", "FAIL", str(e))
+    finally:
+        leave_fresh_home(tmp, old)
+    return report
+
+
+def run_health(fresh_mode: bool = False) -> Report:
+    report = Report()
+    if fresh_mode:
+        report.add(
+            "mode",
+            "INFO",
+            "FRESH sandbox — missing vault/state is expected until install sim runs",
+        )
     check_scripts(report)
     vault = check_config(report)
+    # In pure fresh health (before sim), missing config is expected → downgrade FAIL noise
+    if fresh_mode and not vault:
+        # rewrite last config fails as INFO for readability is hard; run_fresh handles real proof
+        pass
     if vault:
         check_vault_structure(report, vault)
         check_pointers(report, vault)
@@ -492,29 +724,68 @@ def run_smoke() -> Report:
 
 
 def main(argv=None) -> int:
-    parser = argparse.ArgumentParser(description="SAO doctor / smoke test")
-    parser.add_argument("--smoke", action="store_true", help="Run isolated smoke tests after health checks")
+    parser = argparse.ArgumentParser(description="SAO doctor / smoke / fresh-device test")
+    parser.add_argument("--smoke", action="store_true", help="Isolated temp-vault smoke (restores config)")
+    parser.add_argument("--fresh", action="store_true", help="Simulate empty device HOME + install path")
     parser.add_argument("--strict", action="store_true", help="Exit 1 on WARN as well")
     parser.add_argument("--json", action="store_true", help="Machine-readable JSON report")
     args = parser.parse_args(argv)
 
-    health = run_health()
+    health = None
     smoke = None
-    if args.smoke:
+    fresh = None
+
+    if args.fresh:
+        # Primary proof for empty-device install path
+        fresh = run_fresh_install_sim()
+        # Optional: also run package-only health on REAL machine after restore
+        health = run_health(fresh_mode=False)
+        # Keep health package checks only signal — don't double-count host hermes noise as fresh proof
+    else:
+        health = run_health(fresh_mode=False)
+
+    if args.smoke and not args.fresh:
+        # smoke alone on host (dev regression)
         smoke = run_smoke()
+    elif args.smoke and args.fresh:
+        # smoke already covered by fresh sim session sync; skip host smoke to avoid config thrash
+        pass
 
     if args.json:
-        def ser(r: Report):
+        def ser(r: Optional[Report]):
+            if not r:
+                return None
             return [{"name": x.name, "level": x.level, "detail": x.detail} for x in r.results]
-        out = {"health": ser(health), "smoke": ser(smoke) if smoke else None}
+        out = {
+            "health": ser(health),
+            "smoke": ser(smoke),
+            "fresh": ser(fresh),
+        }
         print(json.dumps(out, indent=2))
     else:
-        health.print_report("SAO Doctor — Health")
+        if fresh:
+            fresh.print_report("SAO Doctor — Fresh device sim")
+        if health:
+            title = "SAO Doctor — Health (host)" if fresh else "SAO Doctor — Health"
+            health.print_report(title)
         if smoke:
             smoke.print_report("SAO Doctor — Smoke")
 
-    fails = health.fails + (smoke.fails if smoke else 0)
-    warns = health.warns + (smoke.warns if smoke else 0)
+    fails = 0
+    warns = 0
+    for r in (health, smoke, fresh):
+        if r:
+            fails += r.fails
+            warns += r.warns
+    # When --fresh, host health WARNs (no services clone, port closed) are expected on CI
+    # Critical path = fresh suite + package file checks
+    if args.fresh and fresh is not None:
+        fails = fresh.fails
+        # still count package file FAILs from health
+        if health:
+            fails += sum(1 for x in health.results if x.level == "FAIL" and x.name.startswith("file:"))
+        warns = fresh.warns
+
     if fails:
         return 1
     if args.strict and warns:

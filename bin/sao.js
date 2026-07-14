@@ -115,6 +115,7 @@ Usage:
   sao status                  # Check services + vault + worker
   sao doctor                  # Health check (vault, state.db, MCP, skills)
   sao doctor --smoke          # Health + isolated smoke tests
+  sao doctor --fresh          # Empty-device sim (CI / new install path)
   sao stop                    # Stop all services
 
 Worker examples:

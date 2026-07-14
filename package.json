@@ -1,6 +1,6 @@
 {
   "name": "sira-agentic-orchestrator",
-  "version": "1.3.4",
+  "version": "1.3.5",
   "description": "SAO (Sira Agentic Orchestrator) - AI with Permanent Memory Across Sessions",
   "bin": {
     "sao": "./bin/sao.js"

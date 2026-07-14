@@ -176,12 +176,16 @@ Health check: package files, vault structure, AGENTS inject, Hermes pointers, `s
 
 | Flag | Effect |
 |------|--------|
-| (none) | Health only |
-| `--smoke` | + isolated temp vault (inject, pointer, session sync dry-run; **restores** your config) |
+| (none) | Health only (current machine) |
+| `--smoke` | + isolated temp vault on **this** machine (restores config) |
+| `--fresh` | **Empty-device sim** — fake HOME, no host Hermes leak; create vault + mock state.db + session sync |
 | `--strict` | WARN counts as failure (exit 1) |
 | `--json` | CI-friendly JSON report |
 
-Exit `0` if no FAIL. Use after install or when something feels off.
+**CI:** every push/PR runs `sao doctor --fresh` on Windows + Ubuntu (GitHub Actions).  
+Monitor: https://github.com/gilangprtm/sao/actions
+
+Exit `0` if no FAIL on the critical path. Use after install or when something feels off.
 
 #### `sao stop`
 Stop SAO-managed processes (Hermes on `20477`). Graphify has no separate SAO process when using stdio MCP.
