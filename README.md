@@ -180,10 +180,27 @@ Health check: package files, vault structure, AGENTS inject, Hermes pointers, `s
 | `--smoke` | + isolated temp vault on **this** machine (restores config) |
 | `--fresh` | **Empty-device sim** — fake HOME, no host Hermes leak; create vault + mock state.db + session sync |
 | `--strict` | WARN counts as failure (exit 1) |
-| `--json` | CI-friendly JSON report |
+| `--json` | Machine-readable JSON (scripts/CI optional) |
 
-**CI:** every push/PR runs `sao doctor --fresh` on Windows + Ubuntu (GitHub Actions).  
-Monitor: https://github.com/gilangprtm/sao/actions
+**Do not depend on GitHub Actions** (billing/account may block runners).  
+**Monitor on your machine (source of truth):**
+
+```powershell
+# After any SAO change / before claim "ready"
+python scripts/doctor.py --fresh
+# or
+sao doctor --fresh
+```
+
+Optional local watch (every morning, no cloud):
+
+```powershell
+# Windows Task Scheduler / Hermes cron — run:
+python C:\path\to\sao\scripts\doctor.py --fresh
+# exit 0 = green, exit 1 = fix FAILs
+```
+
+GitHub Actions workflow in `.github/workflows/ci.yml` is **optional** only — if account has free runners later, it helps; never required for release confidence.
 
 Exit `0` if no FAIL on the critical path. Use after install or when something feels off.
 
