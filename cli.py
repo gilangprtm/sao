@@ -723,13 +723,35 @@ def cmd_stop():
 
 
 
-def cmd_log_sessions(session_id=None, list_only=False):
-    """sao log | sao log list | sao log session <id>
+def cmd_log_sessions(session_id=None, list_only=False, summarize=False):
+    """sao log | sao log list | sao log session <id> | sao log --summarize
 
     - list: show Hermes sessions + vault note status
     - session <id>: force recompile one growing session
+    - --summarize: trigger AI to summarize yesterday's transcripts
     - (default): sync all sessions (create new + update longer ones)
     """
+    if summarize:
+        config = load_config()
+        vpath = config.get("vault_path")
+        if not vpath or not os.path.isdir(vpath):
+            print("❌ Vault path not configured. Run 'sao setup vault' first.")
+            return
+        # Check if Hermes Gateway is running
+        try:
+            import urllib.request
+            urllib.request.urlopen("http://127.0.0.1:20477/v1/models", timeout=3)
+        except:
+            print("❌ Gateway Hermes tidak merespon (port 20477).")
+            print("💡 Fitur --summarize butuh 'sao start' dulu agar Gateway menyala.")
+            return
+        try:
+            sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+            from scripts.subconscious import run_ai_summarize
+            run_ai_summarize(vpath)
+        except Exception as e:
+            print(f"❌ Gagal memanggil AI Summarize: {e}")
+        return
     config = load_config()
     vpath = config.get("vault_path")
     if not vpath or not os.path.isdir(vpath):

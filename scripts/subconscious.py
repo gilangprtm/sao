@@ -571,8 +571,125 @@ if __name__ == "__main__":
         filt = sys.argv[2] if len(sys.argv) > 2 else None
         run_session_sync(vpath, filter_session=filt, force=bool(filt))
         run_graphify_update(vpath)
+    elif cmd == "summarize":
+        run_ai_summarize(vpath)
+    elif cmd == "daily":
+        run_session_sync(vpath)
+        run_graphify_update(vpath)
+        run_ai_summarize(vpath)
+        run_daily_digest(vpath)
     elif cmd == "health":
         run_health_check()
     else:
         print(f"Unknown command: {cmd}")
         print("Usage: python subconscious.py [daily|sync|health] [session_id]")
+
+def run_ai_summarize(vpath):
+    print("Fitur AI Summarize masih membutuhkan Hermes Agent untuk dipanggil via CLI.")
+    print("Gunakan command: hermes chat --prompt 'Tolong rangkum isi file Sessions/...'")
+
+
+import urllib.request
+import urllib.error
+
+def _call_hermes_gateway(prompt):
+    url = "http://127.0.0.1:20477/v1/chat/completions"
+    data = {
+        "model": "default",
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": 0.3
+    }
+    req = urllib.request.Request(url, data=json.dumps(data).encode('utf-8'), headers={'Content-Type': 'application/json'})
+    try:
+        resp = urllib.request.urlopen(req, timeout=120)
+        res = json.loads(resp.read().decode('utf-8'))
+        return res['choices'][0]['message']['content']
+    except Exception as e:
+        return None
+
+def run_ai_summarize(vpath):
+    print(f"[{datetime.now()}] 🤖 Menjalankan SAO AI Summarize...")
+    sessions_dir = os.path.join(vpath, "Sessions")
+    if not os.path.isdir(sessions_dir):
+        return
+        
+    con = sqlite3.connect(HERMES_STATE_DB)
+    con.row_factory = sqlite3.Row
+    
+    summarized_count = 0
+    for f in os.listdir(sessions_dir):
+        if not f.endswith(".md"): continue
+        filepath = os.path.join(sessions_dir, f)
+        
+        with open(filepath, 'r', encoding='utf-8') as fh:
+            content = fh.read()
+            
+        # Parse frontmatter to check message_count vs summarized_count
+        msg_count_m = re.search(r'^message_count:\s*(\d+)', content, re.MULTILINE)
+        sum_count_m = re.search(r'^summarized_count:\s*(\d+)', content, re.MULTILINE)
+        
+        if not msg_count_m: continue
+        total_msgs = int(msg_count_m.group(1))
+        sum_msgs = int(sum_count_m.group(1)) if sum_count_m else 0
+        
+        # Only summarize if there are at least 4 new messages
+        if total_msgs - sum_msgs < 4:
+            continue
+            
+        sess_id_m = re.search(r'^session_id:\s*"([^"]+)"', content, re.MULTILINE)
+        if not sess_id_m: continue
+        sess_id = sess_id_m.group(1)
+        
+        # Fetch ONLY the unsummarized messages
+        msgs = con.execute("SELECT role, content FROM messages WHERE session_id = ? ORDER BY created_at ASC LIMIT ? OFFSET ?", (sess_id, total_msgs, sum_msgs)).fetchall()
+        
+        transcript = []
+        for m in msgs:
+            role = m["role"].upper() if "role" in m.keys() else "UNKNOWN"
+            txt = m["content"] or ""
+            if role == "TOOL": txt = txt[:100] + "...[tool]"
+            transcript.append(f"[{role}]: {txt}")
+            
+        raw_text = "
+".join(transcript)
+        if len(raw_text) > 20000: raw_text = raw_text[-20000:]
+        
+        prompt = f"Rangkum obrolan teknis berikut ke dalam poin-poin singkat (executive summary). Fokus pada masalah yang dibahas, solusi yang dicoba, dan kesimpulan akhir. Jangan bertele-tele.
+
+OBROLAN:
+{raw_text}"
+        
+        print(f"  -> Summarizing {sess_id} (pesan {sum_msgs} s/d {total_msgs})...")
+        summary = _call_hermes_gateway(prompt)
+        
+        if summary:
+            # Append summary
+            now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
+            summary_block = f"
+### 🤖 AI Summary ({now_str} | Msg {sum_msgs}-{total_msgs})
+{summary.strip()}
+"
+            
+            # Inject into file
+            if "## 🧠 AI Summaries" not in content:
+                content = content.replace("## Full Transcript", "## 🧠 AI Summaries
+
+## Full Transcript")
+            
+            content = content.replace("## 🧠 AI Summaries", f"## 🧠 AI Summaries
+{summary_block}")
+            
+            # Update frontmatter
+            if sum_count_m:
+                content = re.sub(r'^summarized_count:\s*\d+', f"summarized_count: {total_msgs}", content, flags=re.MULTILINE)
+            else:
+                content = content.replace("message_count:", f"summarized_count: {total_msgs}
+message_count:")
+                
+            with open(filepath, 'w', encoding='utf-8') as fw:
+                fw.write(content)
+            summarized_count += 1
+        else:
+            print(f"  -> Gagal merangkum {sess_id} (Gateway offline atau timeout?)")
+            
+    print(f"✅ AI Summarize selesai. {summarized_count} sesi diperbarui.")
