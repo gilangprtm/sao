@@ -238,8 +238,15 @@ try {
     Write-Host "   Hermes MCP config sync skipped: $_" -ForegroundColor DarkGray
 }
 
-# 4. Copy subconscious script + optional cron
-$hermesPython = Join-Path $baseDir "services\hermes\.venv\Scripts\python.exe"
+# 4. Copy subconscious script + register cron (auto memory sync)
+# Hermes cron CLI: hermes cron create <schedule> [--name] [--script] [--no-agent] [--deliver]
+# Script path is relative to ~/.hermes/scripts/ (or %LOCALAPPDATA%\hermes\scripts on Windows)
+$hermesWorkDir = Join-Path $baseDir "services\hermes"
+$hermesExeForCron = Join-Path $hermesWorkDir ".venv\Scripts\hermes.exe"
+if (-Not (Test-Path $hermesExeForCron)) {
+    $hermesExeForCron = Join-Path $env:LOCALAPPDATA "hermes\hermes-agent\venv\Scripts\hermes.exe"
+}
+$hermesPython = Join-Path $hermesWorkDir ".venv\Scripts\python.exe"
 if (-Not (Test-Path $hermesPython)) {
     $globalHermes = Join-Path $env:LOCALAPPDATA "hermes\hermes-agent\venv\Scripts\python.exe"
     if (Test-Path $globalHermes) {
@@ -249,22 +256,62 @@ if (-Not (Test-Path $hermesPython)) {
     }
 }
 
+function Invoke-HermesCron {
+    param([string[]]$CronArgs)
+    if (Test-Path $hermesExeForCron) {
+        & $hermesExeForCron @CronArgs
+        return $LASTEXITCODE
+    }
+    & $hermesPython -m hermes_cli.main @CronArgs
+    return $LASTEXITCODE
+}
+
 try {
     $saoScript = Join-Path $baseDir "scripts\subconscious.py"
-    $hermesScripts = Join-Path $env:LOCALAPPDATA "hermes\scripts"
-    New-Item -ItemType Directory -Force -Path $hermesScripts -ErrorAction SilentlyContinue | Out-Null
-    $targetScript = Join-Path $hermesScripts "sao_subconscious.py"
-    if (Test-Path $saoScript) {
-        Copy-Item -Path $saoScript -Destination $targetScript -Force -ErrorAction SilentlyContinue
+    $scriptDirs = @(
+        (Join-Path $env:LOCALAPPDATA "hermes\scripts"),
+        (Join-Path $env:USERPROFILE ".hermes\scripts")
+    )
+    foreach ($hermesScripts in $scriptDirs) {
+        New-Item -ItemType Directory -Force -Path $hermesScripts -ErrorAction SilentlyContinue | Out-Null
+        $targetScript = Join-Path $hermesScripts "sao_subconscious.py"
+        if (Test-Path $saoScript) {
+            Copy-Item -Path $saoScript -Destination $targetScript -Force -ErrorAction SilentlyContinue
+            Write-Host "--> Subconscious script: $targetScript" -ForegroundColor DarkGray
+        }
     }
 
-    $existingCron = & $hermesPython -m hermes_cli.main cron list 2>$null | Select-String "sao_subconscious"
-    if (-Not $existingCron) {
-        Write-Host "--> Registering Daily Subconscious Cron in Hermes..." -ForegroundColor Yellow
-        & $hermesPython -m hermes_cli.main cron create --name "SAO Subconscious Daily" --schedule "0 9 * * *" --script "sao_subconscious.py" --no-agent --deliver local 2>$null | Out-Null
+    $listOut = Invoke-HermesCron -CronArgs @("cron", "list") 2>&1 | Out-String
+    $hasDaily = $listOut -match "sao_subconscious|SAO Subconscious"
+    if (-Not $hasDaily) {
+        Write-Host "--> Registering SAO Subconscious cron (daily 09:00 + every 2h sync)..." -ForegroundColor Yellow
+        # schedule is POSITIONAL (not --schedule)
+        $c1 = Invoke-HermesCron -CronArgs @(
+            "cron", "create", "0 9 * * *",
+            "--name", "SAO Subconscious Daily",
+            "--script", "sao_subconscious.py",
+            "--no-agent",
+            "--deliver", "local"
+        )
+        $c2 = Invoke-HermesCron -CronArgs @(
+            "cron", "create", "every 2h",
+            "--name", "SAO Session Sync 2h",
+            "--script", "sao_subconscious.py",
+            "--no-agent",
+            "--deliver", "local"
+        )
+        if (($c1 -eq 0) -or ($c2 -eq 0)) {
+            Write-Host "    Cron registered. Keep Hermes gateway running for jobs to fire." -ForegroundColor Green
+        } else {
+            Write-Host "    Cron create may have failed (exit daily=$c1 sync=$c2). Check: hermes cron list" -ForegroundColor Yellow
+        }
+    } else {
+        Write-Host "--> SAO subconscious cron already present." -ForegroundColor DarkGray
     }
 } catch {
-    Write-Host "   Auto-cron register skipped." -ForegroundColor DarkGray
+    Write-Host "   Auto-cron register skipped: $_" -ForegroundColor DarkGray
+    Write-Host "   Manual:" -ForegroundColor DarkGray
+    Write-Host '     hermes cron create "0 9 * * *" --name "SAO Subconscious Daily" --script sao_subconscious.py --no-agent --deliver local' -ForegroundColor DarkGray
 }
 
 # 5. Start Hermes (real CLI: hermes / hermes_cli.main - NOT hermes_api)
