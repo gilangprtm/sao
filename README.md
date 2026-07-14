@@ -5,40 +5,26 @@
 
 ---
 
-**SAO** is not just another AI agent.
+**SAO** is not just another AI agent. It is a **personal AI operating system with permanent memory**. 
 
-It is a **personal AI operating system with permanent memory**. It treats your Markdown vault as its brain, remembers every conversation across sessions, and never forgets — even when you open a new chat tab.
+It wraps around **[Hermes Agent](https://hermes-agent.nousresearch.com/)** and treats your local Markdown vault as its brain. It remembers every conversation across sessions and never forgets — even when you open a new chat tab.
 
 ### Why SAO?
 
 - **Never Forgets**  
-  Every session (Discord, Telegram, CLI, TUI) is automatically compiled into your vault. Cross-session memory is built-in, not bolted on. No context window limits your past — only your vault does.
-
+  Every session (Desktop, CLI, Discord, Telegram) is automatically compiled into your vault. Cross-session memory is built-in, not bolted on. No context window limits your past — only your vault does.
 - **Vault-Backed Memory**  
-  Your vault (Obsidian or plain Markdown) is the single source of truth. All conversations, decisions, and knowledge live there — searchable, linkable, permanent.
-
+  Your vault (Obsidian or plain Markdown) is Sira's single source of truth. All conversations, decisions, and knowledge live there — searchable, linkable, permanent.
+- **Hermes Core**  
+  SAO uses **Hermes Agent** as its brain. You can chat via the official Hermes Desktop GUI, the CLI, or messaging gateways. SAO orchestrates the memory behind the scenes.
 - **Self-Improving by Design**  
-  Every day at 09:00, SAO writes a structured daily digest. Graphify continuously builds a knowledge graph from your entire vault.
-
+  SAO schedules background cron jobs (via Hermes) to run a structured daily digest and sync sessions every hour. Graphify continuously builds a knowledge graph from your entire vault.
 - **Session-Agnostic**  
   Open a new session anytime — Sira will recall past context naturally. You never need to type a session ID, link old threads, or repeat yourself.
-
 - **Worker is Optional**  
-  By default, SAO uses itself (`sira`) as the coding worker. You can later plug Claude Code, OpenCode, or any CLI you prefer.
-
-- **One Command, Zero Maintenance**  
-  `sao install` handles everything: Hermes, Graphify, and `uv`.
-
-- **Philosophy Built-In**  
-  `sao create vault` generates a complete Sira-structured vault with full **SIS** (Sira Intelligence System), **SOM** (Sira Operating Manual), and a **`.graphignore`** filter to keep the graph lean.
-
-- **Vault Cleaner**  
-  `sao ingest` automatically transforms messy raw files under `vault/raw/` into clean wiki notes — no deep manual structuring needed.
-
----
-
-**Powered by:** Hermes (Brain) + Graphify (Knowledge Graph)  
-**Memory:** Your Vault (Markdown) + Sessions + Graph Index
+  By default, SAO uses Hermes itself (`sira`) for tasks. You can later plug Claude Code, OpenCode, or any CLI you prefer for coding tasks.
+- **One Command Setup**  
+  `sao install` handles everything: the official Hermes installer (including Desktop), Graphify, and the SAO memory skills.
 
 ---
 
@@ -47,237 +33,76 @@ It is a **personal AI operating system with permanent memory**. It treats your M
 ### 1. Prerequisites
 - PowerShell / CMD
 - **Node.js 20+**
-- **Git**
 - **Python 3.11+** ([python.org](https://www.python.org/downloads/) — check **"Add python.exe to PATH"**)
 
-> **No need to install Hermes / uv / Graphify / Claude Code beforehand.**  
-> `sao install` only installs the **core** (Hermes + Graphify + auto-`uv`).  
-> Coding workers are **optional**.
-
-### 2. Install SAO
+### 2. Install SAO & Hermes
+This command installs the SAO CLI globally, then downloads the official Hermes Agent (including Desktop GUI) and Graphify.
 ```powershell
 npm install -g git+https://github.com/gilangprtm/sao.git
 sao install
 ```
+*(If you already have Hermes installed, `sao install` will skip it and just install the SAO skills.)*
 
 ### 3. Create Your Vault
 ```powershell
 sao create vault
 ```
+*(We recommend opening this folder in **Obsidian** for the best human reading experience).*
 
-### 4. (Optional) Set a coding worker
+### 4. Setup Model (First Run Only)
+If you haven't set up Hermes before, pick your LLM provider and enter your API key:
 ```powershell
-sao set worker sira         # built-in (default)
-sao set worker claude       # Claude Code CLI
-sao set worker opencode     # OpenCode CLI
-sao set worker <any-cmd>    # any binary on PATH
+hermes setup
 ```
 
-### 5. (Recommended) Open Vault in Obsidian
-Vault = Markdown folder. Obsidian is optional for AI, recommended for humans.
-
-### 6. Launch
+### 5. Launch Sira
 ```powershell
-sao start                  # everyday (fast incremental graph update)
-sao start --clean-graph    # after big deletes / stale graph nodes
+sao start
 ```
-- **Hermes**: brain + session store (`state.db`) + owns Graphify MCP (stdio)
-- Graph index updated on `sao start`; query via Hermes MCP tools (no fixed Graphify HTTP port)
+`sao start` will:
+1. Bind Sira's memory to your Vault.
+2. Register the SAO background memory sync (every 1 hour).
+3. Update the Graphify Knowledge Graph.
+4. Launch the **Hermes Desktop GUI** (or fallback to CLI chat).
+
+You can now talk to Sira in the Hermes Desktop app. Your memory is permanent.
 
 ---
 
-## 📋 CLI Usage & Commands
+## 📋 CLI Commands
 
 Run `sao -h` or `sao --help` to show usage help.
 
-```
-SAO - Sira Agentic Orchestrator
+| Command | Description |
+|---------|-------------|
+| `sao install` | Install Hermes (if missing), Graphify, and SAO skills |
+| `sao start` | Bind vault, update graph, register cron, launch Hermes (Desktop/CLI) |
+| `sao start --clean-graph` | Full rebuild of the Graphify knowledge graph |
+| `sao create vault` | Scaffold a new Sira vault (SIS, SOM-Lite, etc.) |
+| `sao setup vault` | Link SAO to an existing Sira vault |
+| `sao log` | Manually compile recent Hermes sessions into your vault |
+| `sao log list` | List recent Hermes sessions and their vault status |
+| `sao ingest` | Auto-format raw notes (`vault/raw/`) into clean wiki pages |
+| `sao doctor` | Run health checks on SAO, Hermes, and the vault |
 
-Usage:
-  sao install                 # Install core: Hermes + Graphify (+ auto uv)
-  sao create vault            # Generate Markdown vault with Sira structure
-  sao setup vault             # Link existing vault folder
-  sao set worker [cmd]        # Set coding worker (default: sira)
-  sao start                   # Launch SAO (incremental graph update)
-  sao start --clean-graph     # Launch + full graph rebuild (remove stale nodes)
-  sao log                     # Sync all Hermes sessions → vault/Sessions/
-  sao log list                # List sessions + vault status
-  sao log session <id>        # Force recompile one growing session
-  sao ingest                  # Ingest raw files from vault/raw/ into wiki/
-  sao status                  # Check services + vault + worker
-  sao doctor                  # Health check (vault, state.db, MCP, skills)
-  sao doctor --smoke          # Health + isolated smoke tests
-  sao stop                    # Stop all services
-```
+---
 
-### Detail Commands
+## 🧠 Memory Sync (Cron)
 
-#### `sao install`
-Clones core services (Hermes, Graphify), bootstraps envs via `uv`, installs deps. Does **not** install coding workers.
+SAO registers background jobs in Hermes to sync your memory automatically:
+- **Hourly**: Syncs new Hermes chat sessions into `vault/Sessions/`.
+- **Daily (09:00)**: Syncs sessions and writes a daily journal + self-reflection in `vault/wiki/journal/`.
 
-#### `sao create vault`
-Interactively prompts for a vault name. Generates structure under `~/Documents/[VaultName]`:
-```
-Documents/<VaultName>/
-├── AGENTS.md              # Sira instructions + memory continuity rules
-├── SCHEMA.md              # Folder mappings and rules
-├── Philosophy/
-│   ├── SIS.md             # Sira Intelligence System (DNA)
-│   └── SOM.md             # Sira Operating Manual (protocols)
-├── wiki/
-│   ├── index.md
-│   └── journal/           # Daily digests (subconscious)
-├── Sessions/              # Compiled Hermes session notes (auto-linked)
-├── raw/                   # Unprocessed documents
-├── ingested/              # Archive
-├── graphify-out/          # Graph index output
-└── _templates/
-    └── note.md
-```
+*Note: Background cron jobs require the Hermes Gateway or Desktop app to be running.*
 
-#### `sao setup vault`
-Link an existing vault folder. Writes path to `~/.sao/config.json`.
+## 🧑‍💻 Coding Workers (Optional)
 
-#### `sao set worker [sira|claude|opencode|<cmd>]`
-Sets coding delegate. Default `sira`. Probes PATH and lists detected CLIs.
-
-#### `sao start` / `sao start --clean-graph`
-1. Bind vault path + write Hermes pointers (`sao_vault.json`, env `SAO_VAULT_PATH` / `HERMES_STATE_DB`)
-2. Update Graphify index (incremental; use `--clean-graph` for full rebuild)
-3. Register Graphify as **Hermes stdio MCP** (Hermes owns lifecycle — no separate port 20476)
-4. Register subconscious cron if missing
-5. Start Hermes Core (`20477`)
-
-| Mode | When | Speed | Removes deleted-file nodes? |
-|------|------|-------|-----------------------------|
-| `sao start` | Everyday | Fast (incremental) | No — stale nodes can remain |
-| `sao start --clean-graph` | After mass delete / graph feels wrong | Slower (1–3+ min large vault) | **Yes** — wipe `graphify-out` + reindex `--force` |
-
-#### `sao log` / `sao log list` / `sao log session <id>`
-Syncs Hermes conversation history into the vault:
-
-| Command | Effect |
-|---------|--------|
-| `sao log` | Sync all sessions (create new + update if chat grows) |
-| `sao log list` | List latest sessions + IN_VAULT / MISSING |
-| `sao log session <id>` | Force recompile one long session |
-
-Related sessions are **auto-linked** via token similarity — user never types session IDs.
-
-#### `sao ingest`
-Reads messy files (TXT, DOCX, XLSX, raw notes) inside `vault/raw/`. 
-Sends them to Sira to compile into formatted Markdown notes under `vault/wiki/` (with YAML frontmatter and smart `[[wikilinks]]`), then archives the source file to `vault/ingested/` and runs a graph update.
-
-#### `sao status`
-Services (ACTIVE/INACTIVE), vault path, worker config, state.db path.
-
-#### `sao doctor` / `sao doctor --smoke`
-Health check: package files, vault structure, AGENTS inject, Hermes pointers, `state.db` schema, Graphify MCP registration, skills copy.
-
-| Flag | Effect |
-|------|--------|
-| (none) | Health only (current machine) |
-| `--smoke` | + isolated temp vault on **this** machine (restores config) |
-| `--fresh` | **Empty-device sim** — fake HOME, no host Hermes leak; create vault + mock state.db + session sync |
-| `--strict` | WARN counts as failure (exit 1) |
-| `--json` | Machine-readable JSON (scripts/CI optional) |
-
-## 🧪 Test di device kosong (wajib jika claim ready)
-
-Sira **tidak bisa pantau** laptop lain. Ikuti checklist + kirim report:
-
-📄 **[docs/ZERO-DEVICE-CHECKLIST.md](docs/ZERO-DEVICE-CHECKLIST.md)**
-
-Gate lokal (mesin dev): `sao doctor --fresh` — **bukan** GitHub Actions.
-
+Sira can delegate coding tasks to specialized CLIs. By default, Sira does the work itself.
 ```powershell
-# After any SAO change / before claim "ready"
-python scripts/doctor.py --fresh
-# or
-sao doctor --fresh
+sao set worker claude       # Use Anthropic's Claude Code
+sao set worker opencode     # Use OpenCode CLI
+sao set worker codex        # Use OpenAI Codex
 ```
-
-Optional local watch (every morning, no cloud):
-
-```powershell
-# Windows Task Scheduler / Hermes cron — run:
-python C:\path\to\sao\scripts\doctor.py --fresh
-# exit 0 = green, exit 1 = fix FAILs
-```
-
-GitHub Actions workflow in `.github/workflows/ci.yml` is **optional** only — if account has free runners later, it helps; never required for release confidence.
-
-Exit `0` if no FAIL on the critical path. Use after install or when something feels off.
-
-#### `sao stop`
-Stop SAO-managed processes (Hermes on `20477`). Graphify has no separate SAO process when using stdio MCP.
 
 ---
-
-## 🧠 How Memory Works
-
-```
-Hermes state.db (all platforms)  →  sao log  →  vault/Sessions/
-                                                       │
-                                                       ▼
-                                              auto-link related sessions
-                                               (Jaccard similarity)
-                                                       │
-                                                       ▼
-                                              graphify update → graph index
-                                                       │
-                                                       ▼
-                                              Sira recalls naturally
-                                               (no user session IDs)
-```
-
-### Without SAO
-```
-Session 1: "set up auth"      → AI remembers
-Session 2: "about the auth..." → AI forgets until you spoon-feed
-Session 3: "auth question"    → AI has no idea
-```
-
-### With SAO
-```
-Session 1: "set up auth"      → vault/Sessions/session1.md
-Session 2: "about the auth"   → Sira reads session1 → continues naturally
-Session 3: "auth question"    → Sira reads session1+2 → knows the context
-```
-
-**The user never types a session ID. It just works.**
-
----
-
-## 🛠️ Worker model
-
-| Worker | How | Required? |
-|--------|-----|-----------|
-| **sira** (default) | Hermes handles coding tasks itself | No |
-| **claude** | `claude` CLI on PATH | Optional |
-| **opencode** | `opencode` CLI on PATH | Optional |
-| **custom** | any CLI via `sao set worker` | Optional |
-
----
-
-## FAQ
-
-### Does SAO need a cloud account?
-**No.** SAO runs on your machine. You choose your own LLM provider via Hermes config or your own custom gateway — no mandatory cloud account.
-
-### Is Claude Code required?
-**No.** Default worker is `sira`.
-
-### Is Obsidian required?
-**No.** Vault is a Markdown folder. Obsidian is recommended for humans.
-
-### Will every `sao start` take 1 minute?
-**No.** First index can be slow. Later starts use **incremental** update (seconds).
-
-### Can SAO run on a VPS without screen?
-Yes. All services run headless. CLI-only mode works on Linux VPS.
-
----
-
-## 📜 License
-MIT
+**Powered by:** [Hermes Agent](https://github.com/NousResearch/hermes-agent) + [Graphify](https://github.com/Graphify-Labs/graphify)
