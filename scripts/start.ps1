@@ -284,7 +284,7 @@ try {
     $listOut = Invoke-HermesCron -CronArgs @("cron", "list") 2>&1 | Out-String
     $hasDaily = $listOut -match "sao_subconscious|SAO Subconscious"
     if (-Not $hasDaily) {
-        Write-Host "--> Registering SAO Subconscious cron (daily 09:00 + every 2h sync)..." -ForegroundColor Yellow
+        Write-Host "--> Registering SAO Subconscious cron (daily 09:00 + every 1h session sync)..." -ForegroundColor Yellow
         # schedule is POSITIONAL (not --schedule)
         $c1 = Invoke-HermesCron -CronArgs @(
             "cron", "create", "0 9 * * *",
@@ -294,8 +294,8 @@ try {
             "--deliver", "local"
         )
         $c2 = Invoke-HermesCron -CronArgs @(
-            "cron", "create", "every 2h",
-            "--name", "SAO Session Sync 2h",
+            "cron", "create", "every 1h",
+            "--name", "SAO Session Sync 1h",
             "--script", "sao_subconscious.py",
             "--no-agent",
             "--deliver", "local"

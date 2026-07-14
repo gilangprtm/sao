@@ -10,7 +10,11 @@ tags: ["cron", "background", "maintenance", "memory"]
 Run periodic memory sync and self-reflection in the background without user intervention.
 
 ## Cron Schedule (Hermes)
-- Daily at 09:00: `python scripts/subconscious.py daily` (auto-registered by `sao start`)
+- **Every 1 hour:** session sync → `vault/Sessions/` (pindah-pindah sesi dalam sehari tetap ter-compile)
+- **Daily 09:00:** sync + journal `wiki/journal/YYYY-MM-DD.md` + Self-Review
+- Auto-registered by `sao start` (v1.3.10+)
+
+Requires Hermes **gateway** (or cron scheduler) running for jobs to fire.
 
 ## Functions
 - **Session Sync**: Compiles Hermes conversation history (`state.db`) into `Sessions/<session_id>.md`.
