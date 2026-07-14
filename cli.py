@@ -79,30 +79,90 @@ def inject_vault_into_agents_md(vault_path):
         if "{{VAULT_PATH}}" in text:
             text = text.replace("{{VAULT_PATH}}", posix)
         else:
-            # Idempotent: ensure absolute path appears once under Vault section
-            marker = "**Vault path (dinamis):**"
-            if marker in text:
-                import re
-                text = re.sub(
-                    r"\*\*Vault path \(dinamis\):\*\*\s*`[^`]*`",
-                    f"**Vault path (dinamis):** `{posix}`",
-                    text,
-                    count=1,
-                )
-            else:
-                # Insert after first "## Vault Ini" block header
-                needle = "## Vault Ini"
-                if needle in text:
-                    text = text.replace(
-                        needle,
-                        f"{needle}\n\n**Vault path (dinamis):** `{posix}`\n",
-                        1,
-                    )
+            import re
+            # New index format + legacy
+            patterns = [
+                (r"\*\*Path \(dinamis\):\*\*\s*`[^`]*`", f"**Path (dinamis):** `{posix}`"),
+                (r"\*\*Vault path \(dinamis\):\*\*\s*`[^`]*`", f"**Vault path (dinamis):** `{posix}`"),
+            ]
+            replaced = False
+            for pat, repl in patterns:
+                if re.search(pat, text):
+                    text = re.sub(pat, repl, text, count=1)
+                    replaced = True
+                    break
+            if not replaced:
+                for needle in ("## Vault", "## Vault Ini"):
+                    if needle in text:
+                        text = text.replace(
+                            needle,
+                            f"{needle}\n\n**Path (dinamis):** `{posix}`\n",
+                            1,
+                        )
+                        break
         with open(agents, "w", encoding="utf-8") as f:
             f.write(text)
         return True
     except Exception as e:
         print(f"⚠️ Could not inject vault path into AGENTS.md: {e}")
+        return False
+
+
+def ensure_vault_dna_chunks(vault_path):
+    """
+    Copy chunked DNA files into an existing vault (upgrade path).
+    Never overwrites user-edited files unless missing.
+    Always refreshes AGENTS.md from short index template if still huge or legacy-only.
+    """
+    if not vault_path or not os.path.isdir(vault_path):
+        return False
+    tpl_root = os.path.join(os.path.dirname(os.path.abspath(__file__)), "templates", "vault")
+    if not os.path.isdir(tpl_root):
+        return False
+
+    # Philosophy chunks
+    phil_src = os.path.join(tpl_root, "Philosophy")
+    phil_dst = os.path.join(vault_path, "Philosophy")
+    os.makedirs(phil_dst, exist_ok=True)
+    for name in (
+        "SOM-Lite.md",
+        "AGENTS-core.md",
+        "AGENTS-memory.md",
+        "AGENTS-proactive.md",
+    ):
+        src = os.path.join(phil_src, name)
+        dst = os.path.join(phil_dst, name)
+        if os.path.isfile(src) and not os.path.isfile(dst):
+            try:
+                shutil.copy2(src, dst)
+            except Exception:
+                pass
+
+    # Short AGENTS index: replace if missing placeholder path or file too large for small models
+    agents_src = os.path.join(tpl_root, "AGENTS.md")
+    agents_dst = os.path.join(vault_path, "AGENTS.md")
+    try:
+        if os.path.isfile(agents_src):
+            replace = False
+            if not os.path.isfile(agents_dst):
+                replace = True
+            else:
+                size = os.path.getsize(agents_dst)
+                with open(agents_dst, "r", encoding="utf-8", errors="replace") as f:
+                    cur = f.read(2000)
+                # legacy long or no chunk pointers
+                if size > 12000 or "AGENTS-core" not in cur and "SOM-Lite" not in cur:
+                    # backup once
+                    bak = agents_dst + ".bak-pre-chunk"
+                    if not os.path.isfile(bak):
+                        shutil.copy2(agents_dst, bak)
+                    replace = True
+            if replace:
+                shutil.copy2(agents_src, agents_dst)
+        inject_vault_into_agents_md(vault_path)
+        return True
+    except Exception as e:
+        print(f"⚠️ ensure_vault_dna_chunks: {e}")
         return False
 
 
@@ -173,7 +233,7 @@ def bind_vault(vault_path, inject_agents=True):
     save_config(config)
     write_vault_pointer(vault_path)
     if inject_agents:
-        inject_vault_into_agents_md(vault_path)
+        ensure_vault_dna_chunks(vault_path)
     return config
 
 
